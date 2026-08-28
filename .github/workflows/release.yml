@@ -148,6 +148,11 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout Code for Changelog
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Download Linux Artifact
         uses: actions/download-artifact@v4
         with:
@@ -157,11 +162,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: pngtuber-lite-windows-amd64
-
-      - name: Checkout Code for Changelog
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Generate Checksums
         run: |
