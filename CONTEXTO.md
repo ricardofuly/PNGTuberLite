@@ -25,6 +25,7 @@ O **PNGTuber Lite** é uma aplicação nativa e ultra-leve em **Go** criada para
 | **Captura de Áudio** | [`malgo`](https://github.com/gen2brain/malgo) | Binding Go para Miniaudio, baixa latência (< 25ms) e multiplataforma |
 | **Parsing & Formato** | `encoding/json`, `encoding/base64`, `regexp` | Biblioteca padrão Go para deserialização defensiva do `.save` |
 | **Configuração** | `pkg/config` | Persistência em arquivo JSON local (`config.json`) |
+| **Internacionalização (i18n)** | `pkg/i18n` | Dicionários JSON embutidos (`embed.FS`), suporte nativo a `pt-BR` e `en-US`, detecção automática de novos idiomas e troca a quente sem reiniciar |
 
 ---
 
@@ -32,15 +33,20 @@ O **PNGTuber Lite** é uma aplicação nativa e ultra-leve em **Go** criada para
 
 | # | Fase Oficial do Projeto | Status | O que foi feito / O que falta |
 |---|---|---|---|
-| **1** | **Parser + modelo de dados** | ✅ **Concluído** | Structs `Vector2`, `Layer`, `Avatar`, parser defensivo JSON/Base64/IHDR, testes com `defaultAvatar.save`. |
-| **2** | **Renderer estático** | ✅ **Concluído** | `TextureCache` GPU, `ComputeWorldTransforms` hierárquico (pais $\rightarrow$ filhos), ordenação por `zindex`. |
+| **1** | **Parser + modelo de dados** | ✅ **Concluído** | Structs `Vector2`, `Layer`, `Avatar`, parser defensivo JSON/Base64/IHDR, testes com `defaultAvatar.save` e `slugcat.save`. |
+| **2** | **Renderer estático** | ✅ **Concluído** | `TextureCache` GPU com filtro bilinear e wrap clamp, `ComputeWorldTransforms` hierárquico (pais $\rightarrow$ filhos), ordenação por `zindex` e profundidade. |
 | **3** | **Sprite-sheet** | ✅ **Concluído** | Avanço de quadros conforme `frames` e `animSpeed` no `SpriteSheetAnimator`. |
 | **4** | **Blink (Piscar)** | ✅ **Concluído** | Temporizador randômico com cooldown, alternância de `showBlink` (0=sempre, 1=piscando, 2=olhos abertos). |
-| **5** | **Wobble físico** | ✅ **Concluído** | Spring-damper com `rotDrag`, `drag`, limites `rLimitMin/Max`, ondas senoidais idle (`xAmp/xFrq`, `yAmp/yFrq`) e stretch. |
+| **5** | **Wobble físico** | ✅ **Concluído** | Spring-damper com `rotDrag`, limites `rLimitMin/Max`, ondas senoidais idle (`xAmp/xFrq`, `yAmp/yFrq`) e stretch. |
 | **6** | **Costumes (Figurinos)** | ✅ **Concluído** | `CostumeManager` para 10 slots com `costumeLayers`, hotkeys locais (`1` a `0`) e bounce opcional. |
 | **7** | **Áudio/talk detection** | ✅ **Concluído** | Captura de microfone com `malgo`, VAD com RMS, histerese anti-flicker e debounce de silêncio. |
 | **8** | **Janela overlay** | ✅ **Concluído** | Transparência nativa Alpha, always-on-top dinâmico (`F11`), modo borderless (`F10`), click-through (`F9`), arraste de avatar compatível com Wayland/X11, zoom (`Scroll`) e persistência em `config.json`. |
-| **9** | **Empacotamento & CI** | ✅ **Concluído** | `Makefile` automatizado, GitHub Actions CI/CD (`.github/workflows/release.yml`) com builds nativos para Linux (`amd64`) e Windows (`amd64.exe`), e testes de regressão hierárquica. |
+| **9** | **Empacotamento & CI** | ✅ **Concluído** | GitHub Actions CI/CD (`.github/workflows/release.yml`) com builds nativos automatizados para Linux (`amd64`) e Windows (`amd64.exe`), checksums SHA256 e release automático. |
+| **10** | **Editor Visual de Avatar** | ✅ **Concluído** | Editor integrado para manipulação de nós, gizmo no canvas, árvore de camadas, física, visibilidade, spritesheets e exportação `.save`. |
+| **11** | **Telemetria & Profiler F3** | ✅ **Concluído** | HUD completo com amostragem de CPU (/proc/self/stat), RAM Física (RSS), Go Heap, VRAM GPU, FPS, frametime e gráficos de sparkline em tempo real. |
+| **12** | **Auto-Update & Hotfix** | ✅ **Concluído** | Verificação assíncrona no GitHub Releases, substituição atômica in-place, barra de progresso e auto-restart desacoplado no Linux e Windows. |
+| **13** | **System Tray & Fechamento** | ✅ **Concluído** | Ícone na bandeja do sistema com restauração rápida e modal de confirmação para minimizar ao fechar. |
+| **14** | **Internacionalização (i18n)** | ✅ **Concluído** | Suporte multi-idiomas nativo (`pt-BR`, `en-US`), descoberta dinâmica de idiomas, medição de texto e auto-dimensionamento de botões/modais. |
 
 ---
 
@@ -50,19 +56,32 @@ O **PNGTuber Lite** é uma aplicação nativa e ultra-leve em **Go** criada para
 /run/media/ricardo-fuly/SSD/Dev/PNGTuberLite/
 ├── go.mod                              # Definição do módulo Go e dependências
 ├── go.sum                              # Checksums de dependências
-├── main.go                             # Entrypoint, controle de janela, loop principal e HUD
+├── main.go                             # Entrypoint, controle de janela, loop principal e HUD F3
 ├── README.md                           # Guia rápido de uso, compilação e atalhos
 ├── CONTEXTO.md                         # Este documento de contexto permanente
 ├── pngtuber-lite-projeto.md            # Especificação original do projeto
 ├── assets/
+│   ├── assets.go                       # Embed FS de fontes e ícones
+│   ├── fonts/                          # Fontes TrueType (regular e bold)
+│   ├── icons/                          # Ícones e texturas embutidas (PNG, ICO)
+│   │   ├── language.png                # Ícone de idiomas para o menu
+│   │   └── ...
 │   └── samples/
-│       └── defaultAvatar.save          # Avatar padrão de 9 camadas extraído do PNGTuber-Plus
+│       ├── defaultAvatar.save          # Avatar padrão de 9 camadas extraído do PNGTuber-Plus
+│       └── slugcat.save                # Avatar complexo de 22 camadas
 └── pkg/
+    ├── i18n/                           # [Fase 14] Internacionalização e Localização
+    │   ├── i18n.go                     # Gerenciador i18n, carregamento de bundles JSON e fallback
+    │   ├── i18n_test.go                # Testes unitários de bundles e alternância de idioma
+    │   └── locales/                    # Dicionários de tradução embutidos
+    │       ├── pt-BR.json              # Português do Brasil
+    │       └── en-US.json              # Inglês Americano
     ├── model/                          # [Fase 1] Estruturas de dados e parser do .save
     │   ├── vector2.go                  # Struct Vector2 e parser de strings "Vector2(x, y)"
     │   ├── layer.go                    # Struct Layer, parâmetros físicos e regras de visibilidade
     │   ├── avatar.go                   # Struct Avatar, árvore hierárquica e ordenação por ZIndex
     │   ├── parser.go                   # Parser defensivo do JSON, decodificação Base64 e dimensões PNG
+    │   ├── builder.go                  # Utilitário para construir avatares .save a partir de pastas
     │   └── parser_test.go              # Testes unitários do parser e validação do defaultAvatar.save
     ├── render/                         # [Fase 2] Motor gráfico Raylib
     │   ├── texture_cache.go            # Carregamento GPU com filtro bilinear e WrapClamp (eliminação de artefatos de borda)
@@ -89,7 +108,9 @@ O **PNGTuber Lite** é uma aplicação nativa e ultra-leve em **Go** criada para
     ├── window/                         # [Fase 6] Janela Overlay Transparente
     │   └── window.go                   # Configuração de flags Raylib (Alpha, Topmost, Undecorated, Passthrough)
     ├── ui/                             # [Fase 7+] Interface de Usuário / Menu de Configurações
-    │   └── ui.go                       # Menu com abas (Avatar, Áudio, Roupas, Física, Teclas, OBS), TrueType anti-aliased com suporte total a UTF-8 e rebind interativo
+    │   ├── ui.go                       # Menu com abas (Avatar, Áudio, Roupas, Física, Teclas, OBS), layouts responsivos com auto-ajuste e fontes TrueType
+    │   ├── icons.go                    # Atlas e carregador de ícones GPU nativos
+    │   └── ui_test.go                  # Testes unitários de renderização de ícones e assets
     ├── profiler/                       # [Fase 11] Telemetria e Profiler de Recursos
     │   ├── profiler.go                 # Amostragem em tempo real de CPU (ticks /proc), RAM Física (RSS), Go Heap e VRAM GPU
     │   └── profiler_test.go            # Testes unitários do profiler
@@ -160,33 +181,21 @@ Uma camada só é desenhada se todas as 3 condições forem verdadeiras:
 - **Mapeamento Flexível**: Todos os comandos do aplicativo (abrir menu, editor, HUD, transparência, overlays, reset de posição, sensibilidade de mic) são definidos na struct `Keybinds` e salvos no `config.json`.
 - **Interface Interativa de Rebind**: A aba **`Teclas`** permite clicar em qualquer atalho e pressionar uma nova tecla no teclado para capturar e persistir a nova configuração instantaneamente, com botão para restaurar os padrões.
 
-### 4.7 Telemetria e Profiler em Tempo Real (`H` / `F1`)
-- **CPU**: Amostragem periódica de ticks de CPU do processo via `/proc/self/stat` normalizada pela quantidade de cores lógicos.
-- **RAM Física (RSS)**: Leitura de páginas residentes via `/proc/self/statm` (inclui alocações CGo, Raylib e drivers OpenGL/Mesa) combinada com métricas de heap Go (`runtime.MemStats`).
+### 4.7 Telemetria e Profiler em Tempo Real (`F3`)
+- **CPU**: Amostragem periódica de ticks de CPU do processo via `/proc/self/stat` normalizada pela quantidade de cores lógicos com barra de progresso suave e sparkline histórico com scroll contínuo.
+- **RAM Física (RSS)**: Leitura de páginas residentes via `/proc/self/statm` combinada com métricas de heap Go (`runtime.MemStats`).
 - **GPU e Render**: Monitoramento de tempo de renderização em milissegundos por quadro, contagem de texturas ativas e cálculo de VRAM dedicada.
 
 ### 4.8 Auto-Update In-Place, Hotfix e Auto-Restart
 - **Repositório Oficial**: [`https://github.com/ricardofuly/PNGTuberLite`](https://github.com/ricardofuly/PNGTuberLite)
-- **Verificação Assíncrona no Startup**: O pacote `pkg/updater` consulta as releases do GitHub em background e alerta o usuário na UI com o botão flutuante `[ 🚀 ATUALIZAR ]`.
+- **Verificação Assíncrona no Startup**: O pacote `pkg/updater` consulta as releases do GitHub em background e alerta o usuário na UI com o botão flutuante `[ ATUALIZAR ]`.
 - **Substituição Atômica In-Place**: O atualizador baixa o `.tar.gz` ou `.zip` do sistema operacional correspondente, extrai o novo binário e renomeia o executável ativo com permissões `0755`.
-- **Reinício Automático Multiplataforma**: Spawning desacoplado do novo processo via `Setsid` (Linux/Unix) e `CREATE_NEW_PROCESS_GROUP` (Windows), com ticker automático no loop da interface após download bem-sucedido.
-- **Workflows GitHub Actions**:
-  - `ci.yml`: Validação e execução contínua de toda a suíte de testes em cada push/PR.
-  - `release.yml`: Compilação nativa para Linux e Windows com injeção automática de versão e publicação de release com checksums SHA256.
-  - `hotfix.yml`: Disparador automatizado de tags para publicação instantânea de patches emergenciais.
+- **Reinício Automático Multiplataforma**: Spawning desacoplado do novo processo via `Setsid` (Linux/Unix) e `CREATE_NEW_PROCESS_GROUP` (Windows).
 
-### 4.9 Sistema de Ícones Nativos e Logo Oficial
-- **Ícones Embutidos (`assets/icons/*.png`)**: Gerenciador `IconManager` em `pkg/ui/icons.go` carrega texturas dedicadas aceleradas por GPU para cada ação e aba da interface.
-- **Ícone do Aplicativo (Windows & Linux)**:
-  - **Linux**: Ícone aplicado em tempo de execução na janela Raylib (`rl.SetWindowIcon`) e na barra de tarefas / bandeja.
-  - **Windows**: Arquivo `assets/icons/icon.ico` integrado na seção de recursos PE via `rsrc_windows_amd64.syso`, garantindo ícone oficial no Windows Explorer, Alt+Tab e barra de tarefas.
-
-### 4.10 Sistema de Bandeja (System Tray) e Confirmação ao Fechar
-- **System Tray (`pkg/tray`)**: Ícone persistente na bandeja do sistema com menu de contexto ("Abrir PNGTuber Lite" e "Sair") e ação rápida de clique único para restaurar a janela.
-- **Modal de Confirmação**: Ao clicar no 'X' da janela ou fechar pelo sistema, o aplicativo intercepta o fechamento e exibe um modal perguntando se o usuário deseja:
-  1. **Minimizar no Tray**: Oculta a janela (`rl.SetWindowState(rl.FlagWindowHidden)`), mantendo o avatar e o microfone ativos em segundo plano com uso mínimo de CPU.
-  2. **Fechar Aplicativo**: Encerra totalmente o processo e salva as configurações de geometria.
-  3. **Cancelar**: Continua com a janela aberta.
+### 4.9 Internacionalização e Layouts Adaptativos (`pkg/i18n`)
+- **Arquitetura i18n Desacoplada**: Dicionários JSON embutidos (`embed.FS`) com carregamento automático de metadados (`LanguageMeta`), bandeiras e títulos nativos.
+- **Descoberta Automática de Idiomas**: Adicionar qualquer novo arquivo `pkg/i18n/locales/{code}.json` faz o novo idioma aparecer instantaneamente na interface e no seletor de idiomas sem nenhuma alteração no código Go.
+- **Layouts e Botões com Auto-Ajuste**: Medição de fontes em tempo real (`MeasureTextBold`) para que botões, títulos de abas, cápsulas de idiomas e modais nunca fiquem espremidos ou com texto cortado.
 
 ---
 
@@ -195,37 +204,32 @@ Uma camada só é desenhada se todas as 3 condições forem verdadeiras:
 Todos os pacotes possuem testes unitários implementados e aprovados:
 
 ```bash
-go test -v ./pkg/model/... ./pkg/anim/... ./pkg/audio/... ./pkg/costume/... ./pkg/config/...
+go test -v ./...
 ```
 
 | Pacote | Testes | Status |
 |---|---|---|
-| `pkg/model` | `TestParseVector2`, `TestParseCostumeLayers`, `TestPNGDimensionsExtraction`, `TestParseSaveDataAndHierarchy`, `TestParseRealDefaultAvatar`, `TestSaveAndReloadAvatar` | ✅ PASS |
+| `pkg/model` | `TestParseVector2`, `TestParseCostumeLayers`, `TestPNGDimensionsExtraction`, `TestParseSaveDataAndHierarchy`, `TestParseRealDefaultAvatar`, `TestSaveAndReloadAvatar`, `TestBuildAvatarFromSlugcatDirectory` | ✅ PASS |
 | `pkg/anim` | `TestBlinkController`, `TestBounceController`, `TestSpriteSheetAnimator`, `TestWobbleAngleLimits` | ✅ PASS |
 | `pkg/audio` | `TestCalculateRMS`, `TestVADHysteresisAndDebounce` | ✅ PASS |
 | `pkg/costume` | `TestCostumeManager` | ✅ PASS |
 | `pkg/config` | `TestConfigLoadSave`, `TestKeybinds` | ✅ PASS |
 | `pkg/render` | `TestComputeWorldTransforms` (transformadas hierárquicas e rotação de nós) | ✅ PASS |
 | `pkg/ui` | `TestEmbeddedAssets` (validação de todos os ícones PNG, ICO e Logo) | ✅ PASS |
-| `pkg/tray` | `TestTrayManagerSetup` (registro de callbacks e eventos do tray) | ✅ PASS |
+| `pkg/tray` | `TestTrayManagerSignals` (registro de callbacks e eventos do tray) | ✅ PASS |
 | `pkg/editor` | `TestEditorStateNewAndModify` (adição e modificação de camadas) | ✅ PASS |
 | `pkg/updater` | `TestIsNewerVersion`, `TestExtractExecutableFromArchive` | ✅ PASS |
 | `pkg/profiler` | `TestSystemProfiler` | ✅ PASS |
+| `pkg/i18n` | `TestI18nBundlesAndSwitching` (validação de chaves e alternância dinâmica) | ✅ PASS |
 
 ---
 
 ## 6. Guia de Compilação e Execução
 
-### Dependências de Desenvolvimento no Linux
-```bash
-sudo apt update && sudo apt install -y libgl1-mesa-dev libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libwayland-dev libxkbcommon-dev libasound2-dev
-```
-
 ### Compilação do Binário
 ```bash
-go build -tags noaudio -ldflags="-s -w" -o pngtuber-lite main.go
+go build -ldflags="-s -w" -o pngtuber-lite main.go
 ```
-> **Nota técnica**: A flag `-tags noaudio` desativa o módulo de áudio embutido do `raylib-go` para evitar colisão de símbolos com o `miniaudio` do `malgo` durante a linkedição CGO.
 
 ### Execução
 ```bash
@@ -245,31 +249,24 @@ go build -tags noaudio -ldflags="-s -w" -o pngtuber-lite main.go
 - `F9`: Alternar modo **Click-Through** (cliques atravessam o avatar).
 - `F10`: Alternar modo **Sem Bordas (Borderless)** / Com Bordas.
 - `F11`: Alternar modo **Sempre no Topo (Always-On-Top)**.
-- `+` / `-` ou `PageUp` / `PageDown`: Ajustar limiar de sensibilidade do microfone.
-- `H` ou `F1`: Ativar/desativar painel de depuração HUD.
+- `F3`: Ativar/desativar painel de telemetria e profiler HUD.
+- `M`: Abrir/fechar gaveta de configurações.
+- `E`: Abrir/fechar editor visual de avatar.
 
 ---
 
-## 7. Próximos Passos e Roadmap
+## 7. Changelog de Evolução
 
-1. **Configuração de Hotkeys Globais**: Suporte a atalhos globais de teclado no sistema operacional (fora de foco) para troca de figurinos durante transmissões ao vivo.
-2. **Integração com WebSocket / Elgato Stream Deck**: API leve local para troca remota de figurinos via Stream Deck ou OBS WebSocket.
-3. **Texture Atlas (Otimização Avançada)**: Agrupar sprites em uma única textura GPU para avatares com dezenas de camadas.
-4. **Interface Gráfica de Configuração (Janela de Controle)**: Menu opcional para seleção de dispositivo de áudio por lista suspensa e carregamento de avatares com file picker nativo.
+- **v1.2.0**:
+  - Implementação do módulo completo de internacionalização (`pkg/i18n`) com suporte nativo a Português (`pt-BR`) e Inglês (`en-US`).
+  - Descoberta automática de novos idiomas adicionados na pasta `locales/`.
+  - Botões, abas, modais e cápsulas com medição de fontes e layout dinâmico sem clipping de texto.
+  - Correção e polimento na rolagem dos cards de configurações.
+  - Tradução integral do Editor de Avatares, Telemetria F3 e modais de confirmação.
+- **v1.1.0**:
+  - Implementação da telemetria de CPU/RAM/VRAM/FPS em tempo real no HUD F3 com barras de progresso e sparklines com interpolação suave.
+  - Otimizações de segurança (limite de memória e proteção contra zip bombs, sanitização de caminhos contra path traversal).
+  - Correção da posição do gizmo no editor e desvio de camadas filhas no canvas.
+- **v1.0.0 a v1.0.9**:
+  - Lançamento inicial, auto-update in-place, ícones integrados e suporte a system tray.
 
----
-
-## 8. Changelog de Evolução
-
-- **2026-08-27**:
-  - Leitura e análise do documento [pngtuber-lite-projeto.md](pngtuber-lite-projeto.md).
-  - Inicialização do módulo Go (`go.mod`) e download das dependências `raylib-go` e `malgo`.
-  - Elaboração do plano arquitetural [plano-implementacao.md](plano-implementacao.md).
-  - **Fase 1**: Implementação do modelo de dados (`Vector2`, `Layer`, `Avatar`) e parser tolerante a JSON/Base64/Godot com testes.
-  - **Fase 2**: Implementação do `TextureCache` GPU, cálculo de transformadas hierárquicas e renderizador 2D `Renderer`.
-  - **Fase 3**: Implementação dos controladores de animação e física (`WobbleSystem`, `BlinkController`, `BounceController`, `SpriteSheetAnimator`, `Animator`).
-  - **Fase 4**: Implementação da captura de microfone com `malgo` e detector VAD com histerese e debounce.
-  - **Fase 5**: Implementação do gerenciador de figurinos (`CostumeManager`) e persistência de configuração (`Config`).
-  - **Fase 6**: Implementação da janela overlay transparente (`WindowManager`), HUD interativo e entrypoint completo em `main.go`.
-  - Extração e teste end-to-end do arquivo real `defaultAvatar.save` com 9 camadas.
-  - Criação da documentação completa em `README.md` e deste arquivo `CONTEXTO.md`.
