@@ -44,11 +44,43 @@ type ReleaseInfo struct {
 	IsHotfix    bool           `json:"-"`
 }
 
+// GetCleanSummary extracts short readable changelog bullet points from release body.
+func (r *ReleaseInfo) GetCleanSummary() []string {
+	if r == nil || strings.TrimSpace(r.Body) == "" {
+		return []string{"• Correções de bugs e otimizações de performance.", "• Atualizações de estabilidade e novos recursos."}
+	}
+
+	lines := strings.Split(r.Body, "\n")
+	var summary []string
+	for _, l := range lines {
+		trimmed := strings.TrimSpace(l)
+		if trimmed == "" || strings.HasPrefix(trimmed, "Full Changelog:") || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		// Strip leading list symbols
+		clean := strings.TrimPrefix(trimmed, "- ")
+		clean = strings.TrimPrefix(clean, "* ")
+		if len(clean) > 55 {
+			clean = clean[:55] + "..."
+		}
+		summary = append(summary, "• "+clean)
+		if len(summary) >= 4 {
+			break
+		}
+	}
+	if len(summary) == 0 {
+		return []string{"• Nova versão disponível com melhorias e correções."}
+	}
+	return summary
+}
+
 // UpdateState tracks background update check and progress.
 type UpdateState struct {
 	mu           sync.RWMutex
 	Checked      bool
 	Available    bool
+	ShowPopup    bool
+	Dismissed    bool
 	Latest       *ReleaseInfo
 	IsUpdating   bool
 	Progress     float32
@@ -77,6 +109,9 @@ func CheckForUpdateAsync() {
 		if hasUpdate && rel != nil {
 			globalUpdateState.Available = true
 			globalUpdateState.Latest = rel
+			if !globalUpdateState.Dismissed {
+				globalUpdateState.ShowPopup = true
+			}
 		}
 	}()
 }

@@ -155,7 +155,8 @@ func (ui *UIState) Draw(
 	audioEngine *audio.CaptureEngine,
 	scale *float32,
 ) {
-	screenH := int32(rl.GetScreenHeight())
+	screenW := float32(rl.GetScreenWidth())
+	screenH := float32(rl.GetScreenHeight())
 	mousePos := rl.GetMousePosition()
 
 	// 1. Floating Menu Toggle Button (Top Left)
@@ -237,76 +238,77 @@ func (ui *UIState) Draw(
 		ui.DrawText(btnLabel, int32(upBtnRec.X)+10, int32(upBtnRec.Y)+8, 13, rl.RayWhite)
 	}
 
-	if !ui.IsOpen {
-		return
-	}
+	if ui.IsOpen {
+		// 2. Control Drawer Window (Left side panel)
+		panelW := float32(410)
+		panelH := screenH - 60
+		if panelH > 580 {
+			panelH = 580
+		}
+		panelRec := rl.NewRectangle(12, 52, panelW, panelH)
 
-	// 2. Control Drawer Window (Left side panel)
-	panelW := int32(410)
-	panelH := screenH - 60
-	if panelH > 580 {
-		panelH = 580
-	}
-	panelRec := rl.NewRectangle(12, 52, float32(panelW), float32(panelH))
+		// Dark semi-transparent background
+		rl.DrawRectangleRounded(panelRec, 0.04, 6, rl.NewColor(16, 18, 26, 248))
+		rl.DrawRectangleRoundedLines(panelRec, 0.04, 6, rl.NewColor(65, 80, 115, 255))
 
-	// Dark semi-transparent background
-	rl.DrawRectangleRounded(panelRec, 0.04, 6, rl.NewColor(16, 18, 26, 248))
-	rl.DrawRectangleRoundedLines(panelRec, 0.04, 6, rl.NewColor(65, 80, 115, 255))
-
-	// 3. Tab Buttons Header
-	tabs := []struct {
-		id   Tab
-		name string
-	}{
-		{TabAvatars, "Avatar"},
-		{TabAudio, "Áudio"},
-		{TabCostumes, "Roupas"},
-		{TabPhysics, "Física"},
-		{TabKeybinds, "Teclas"},
-		{TabOBS, "OBS"},
-	}
-
-	tabW := float32(panelW-20) / float32(len(tabs))
-	for i, t := range tabs {
-		tabRec := rl.NewRectangle(panelRec.X+10+float32(i)*tabW, panelRec.Y+10, tabW-2, 30)
-		isActive := ui.CurrentTab == t.id
-		isHovered := rl.CheckCollisionPointRec(mousePos, tabRec)
-
-		tabBg := rl.NewColor(28, 32, 45, 255)
-		tabTextColor := rl.LightGray
-		if isActive {
-			tabBg = rl.NewColor(45, 85, 150, 255)
-			tabTextColor = rl.RayWhite
-		} else if isHovered {
-			tabBg = rl.NewColor(40, 50, 70, 255)
+		// 3. Tab Buttons Header
+		tabs := []struct {
+			id   Tab
+			name string
+		}{
+			{TabAvatars, "Avatar"},
+			{TabAudio, "Áudio"},
+			{TabCostumes, "Roupas"},
+			{TabPhysics, "Física"},
+			{TabKeybinds, "Teclas"},
+			{TabOBS, "OBS"},
 		}
 
-		if isHovered && rl.IsMouseButtonPressed(rl.MouseLeftButton) {
-			ui.CurrentTab = t.id
+		tabW := float32(panelW-20) / float32(len(tabs))
+		for i, t := range tabs {
+			tabRec := rl.NewRectangle(panelRec.X+10+float32(i)*tabW, panelRec.Y+10, tabW-2, 30)
+			isActive := ui.CurrentTab == t.id
+			isHovered := rl.CheckCollisionPointRec(mousePos, tabRec)
+
+			tabBg := rl.NewColor(28, 32, 45, 255)
+			tabTextColor := rl.LightGray
+			if isActive {
+				tabBg = rl.NewColor(45, 85, 150, 255)
+				tabTextColor = rl.RayWhite
+			} else if isHovered {
+				tabBg = rl.NewColor(40, 50, 70, 255)
+			}
+
+			if isHovered && rl.IsMouseButtonPressed(rl.MouseLeftButton) {
+				ui.CurrentTab = t.id
+			}
+
+			rl.DrawRectangleRounded(tabRec, 0.2, 4, tabBg)
+			ui.DrawText(t.name, int32(tabRec.X)+8, int32(tabRec.Y)+7, 13, tabTextColor)
 		}
 
-		rl.DrawRectangleRounded(tabRec, 0.2, 4, tabBg)
-		ui.DrawText(t.name, int32(tabRec.X)+8, int32(tabRec.Y)+7, 13, tabTextColor)
+		// Content area starting Y
+		contentY := int32(panelRec.Y) + 50
+
+		// 4. Render Active Tab Content
+		switch ui.CurrentTab {
+		case TabAvatars:
+			ui.drawAvatarsTab(panelRec, contentY, cfg, mousePos)
+		case TabAudio:
+			ui.drawAudioTab(panelRec, contentY, cfg, audioEngine, mousePos)
+		case TabCostumes:
+			ui.drawCostumesTab(panelRec, contentY, cfg, costumeMgr, mousePos)
+		case TabPhysics:
+			ui.drawPhysicsTab(panelRec, contentY, cfg, mousePos)
+		case TabKeybinds:
+			ui.drawKeybindsTab(panelRec, contentY, cfg, mousePos)
+		case TabOBS:
+			ui.drawOBSTab(panelRec, contentY, cfg, wm, scale, mousePos)
+		}
 	}
 
-	// Content area starting Y
-	contentY := int32(panelRec.Y) + 50
-
-	// 4. Render Active Tab Content
-	switch ui.CurrentTab {
-	case TabAvatars:
-		ui.drawAvatarsTab(panelRec, contentY, cfg, mousePos)
-	case TabAudio:
-		ui.drawAudioTab(panelRec, contentY, cfg, audioEngine, mousePos)
-	case TabCostumes:
-		ui.drawCostumesTab(panelRec, contentY, cfg, costumeMgr, mousePos)
-	case TabPhysics:
-		ui.drawPhysicsTab(panelRec, contentY, cfg, mousePos)
-	case TabKeybinds:
-		ui.drawKeybindsTab(panelRec, contentY, cfg, mousePos)
-	case TabOBS:
-		ui.drawOBSTab(panelRec, contentY, cfg, wm, scale, mousePos)
-	}
+	// 5. Update Popup Modal (Rendered on top of everything when new version is found)
+	ui.drawUpdateModal(mousePos, screenW, screenH)
 }
 
 func (ui *UIState) drawAvatarsTab(panelRec rl.Rectangle, startY int32, cfg *config.Config, mousePos rl.Vector2) {
@@ -727,17 +729,40 @@ func (ui *UIState) drawOBSTab(panelRec rl.Rectangle, startY int32, cfg *config.C
 	y += 105
 
 	// Version & Update Check section
-	upRec := rl.NewRectangle(panelRec.X+16, float32(y), panelRec.Width-32, 30)
-	hoveredUp := rl.CheckCollisionPointRec(mousePos, upRec)
-	upCol := rl.NewColor(35, 45, 68, 255)
-	if hoveredUp {
-		upCol = rl.NewColor(48, 65, 95, 255)
-		if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
-			updater.CheckForUpdateAsync()
+	upState := updater.GetUpdateState()
+	if upState.Available && upState.Latest != nil {
+		ui.DrawText(fmt.Sprintf("Nova Versão %s Disponível!", upState.Latest.TagName), int32(panelRec.X)+16, y, 13, rl.Lime)
+		y += 18
+
+		upBtn := rl.NewRectangle(panelRec.X+16, float32(y), panelRec.Width-32, 32)
+		hov := rl.CheckCollisionPointRec(mousePos, upBtn)
+		btnCol := rl.NewColor(32, 110, 60, 255)
+		if hov {
+			btnCol = rl.NewColor(42, 145, 75, 255)
+			if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
+				upState.ShowPopup = true // Reabrir o popup com resumo e opções
+			}
 		}
+		rl.DrawRectangleRounded(upBtn, 0.2, 4, btnCol)
+		rl.DrawRectangleRoundedLines(upBtn, 0.2, 4, rl.Lime)
+		btnText := fmt.Sprintf("🚀 Atualizar para %s (Ver Detalhes)", upState.Latest.TagName)
+		if upState.IsUpdating {
+			btnText = fmt.Sprintf("⬇ Baixando... %d%%", int(upState.Progress*100))
+		}
+		ui.DrawText(btnText, int32(upBtn.X)+28, int32(upBtn.Y)+8, 13, rl.RayWhite)
+	} else {
+		upRec := rl.NewRectangle(panelRec.X+16, float32(y), panelRec.Width-32, 30)
+		hoveredUp := rl.CheckCollisionPointRec(mousePos, upRec)
+		upCol := rl.NewColor(35, 45, 68, 255)
+		if hoveredUp {
+			upCol = rl.NewColor(48, 65, 95, 255)
+			if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
+				updater.CheckForUpdateAsync()
+			}
+		}
+		rl.DrawRectangleRounded(upRec, 0.2, 4, upCol)
+		ui.DrawText(fmt.Sprintf("PNGTuber Lite %s | [ 🔍 Verificar Updates ]", updater.CurrentVersion), int32(upRec.X)+12, int32(upRec.Y)+7, 12, rl.SkyBlue)
 	}
-	rl.DrawRectangleRounded(upRec, 0.2, 4, upCol)
-	ui.DrawText(fmt.Sprintf("PNGTuber Lite %s | [ 🔍 Verificar Updates ]", updater.CurrentVersion), int32(upRec.X)+12, int32(upRec.Y)+7, 12, rl.SkyBlue)
 }
 
 func (ui *UIState) drawKeybindsTab(panelRec rl.Rectangle, startY int32, cfg *config.Config, mousePos rl.Vector2) {
@@ -847,4 +872,143 @@ func (ui *UIState) drawKeybindsTab(panelRec rl.Rectangle, startY int32, cfg *con
 	}
 	rl.DrawRectangleRounded(resetBtnRec, 0.2, 4, resetBg)
 	ui.DrawText("↺ Restaurar Teclas Padrão", int32(resetBtnRec.X)+int32(resetBtnRec.Width/2)-75, int32(resetBtnRec.Y)+6, 12, rl.RayWhite)
+}
+
+func (ui *UIState) drawUpdateModal(mousePos rl.Vector2, screenW, screenH float32) {
+	upState := updater.GetUpdateState()
+	if !upState.ShowPopup || upState.Latest == nil {
+		return
+	}
+
+	// 1. Semi-transparent backdrop overlay over the entire screen
+	rl.DrawRectangle(0, 0, int32(screenW), int32(screenH), rl.NewColor(0, 0, 0, 195))
+
+	// 2. Centered Modal Box
+	modalW := float32(490)
+	modalH := float32(310)
+	modalX := (screenW - modalW) / 2
+	modalY := (screenH - modalH) / 2
+	if modalX < 10 {
+		modalX = 10
+	}
+	if modalY < 10 {
+		modalY = 10
+	}
+	modalRec := rl.NewRectangle(modalX, modalY, modalW, modalH)
+
+	// Modal background and glowing border
+	rl.DrawRectangleRounded(modalRec, 0.05, 6, rl.NewColor(16, 20, 32, 255))
+	rl.DrawRectangleRoundedLines(modalRec, 0.05, 6, rl.NewColor(65, 110, 190, 255))
+
+	curY := int32(modalY) + 16
+
+	// Title
+	tag := upState.Latest.TagName
+	titleText := fmt.Sprintf("🚀 Nova Atualização Disponível! (%s)", tag)
+	if upState.Latest.IsHotfix {
+		titleText = fmt.Sprintf("⚡ Hotfix Importante Disponível! (%s)", tag)
+	}
+	ui.DrawText(titleText, int32(modalX)+20, curY, 16, rl.RayWhite)
+	curY += 24
+
+	ui.DrawText(fmt.Sprintf("Versão Atual: %s  ➜  Nova Versão: %s", updater.CurrentVersion, tag), int32(modalX)+20, curY, 13, rl.Lime)
+	curY += 24
+
+	// Summary box
+	boxH := float32(110)
+	boxRec := rl.NewRectangle(modalX+16, float32(curY), modalW-32, boxH)
+	rl.DrawRectangleRounded(boxRec, 0.04, 4, rl.NewColor(10, 14, 22, 255))
+	rl.DrawRectangleRoundedLines(boxRec, 0.04, 4, rl.NewColor(35, 55, 90, 255))
+
+	ui.DrawText("Resumo das Novidades:", int32(boxRec.X)+12, int32(boxRec.Y)+8, 12, rl.SkyBlue)
+	lines := upState.Latest.GetCleanSummary()
+	lineY := int32(boxRec.Y) + 26
+	for _, l := range lines {
+		ui.DrawText(l, int32(boxRec.X)+12, lineY, 12, rl.LightGray)
+		lineY += 18
+	}
+	curY += int32(boxH) + 16
+
+	// Updating state
+	if upState.IsUpdating {
+		barW := modalW - 32
+		barRec := rl.NewRectangle(modalX+16, float32(curY), barW, 24)
+		rl.DrawRectangleRounded(barRec, 0.3, 4, rl.DarkGray)
+
+		fillW := barW * upState.Progress
+		if fillW > barW {
+			fillW = barW
+		}
+		rl.DrawRectangleRounded(rl.NewRectangle(barRec.X, barRec.Y, fillW, barRec.Height), 0.3, 4, rl.Lime)
+
+		ui.DrawText(fmt.Sprintf("⬇ Baixando e instalando atualização... %d%%", int(upState.Progress*100)), int32(modalX)+20, curY+4, 12, rl.RayWhite)
+		return
+	}
+
+	// Success state
+	if upState.Success {
+		ui.DrawText("✓ Atualização instalada com sucesso!", int32(modalX)+20, curY, 14, rl.Lime)
+		ui.DrawText("Reinicie o aplicativo para aplicar a nova versão.", int32(modalX)+20, curY+18, 12, rl.LightGray)
+
+		closeRec := rl.NewRectangle(modalX+modalW-130, float32(curY+8), 114, 34)
+		if rl.CheckCollisionPointRec(mousePos, closeRec) {
+			rl.DrawRectangleRounded(closeRec, 0.2, 4, rl.NewColor(50, 75, 120, 255))
+			if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
+				upState.ShowPopup = false
+				upState.Dismissed = true
+			}
+		} else {
+			rl.DrawRectangleRounded(closeRec, 0.2, 4, rl.NewColor(35, 55, 90, 255))
+		}
+		ui.DrawText("✕ Fechar", int32(closeRec.X)+28, int32(closeRec.Y)+9, 13, rl.RayWhite)
+		return
+	}
+
+	if upState.ErrorMessage != "" {
+		ui.DrawText(fmt.Sprintf("Erro: %s", upState.ErrorMessage), int32(modalX)+20, curY-12, 11, rl.Red)
+	}
+
+	// Action buttons: "Atualizar Agora" vs "Lembrar Mais Tarde"
+	btnW := (modalW - 44) / 2
+	btnH := float32(36)
+
+	// Button 1: Atualizar Agora
+	nowRec := rl.NewRectangle(modalX+16, float32(curY), btnW, btnH)
+	nowHover := rl.CheckCollisionPointRec(mousePos, nowRec)
+	nowCol := rl.NewColor(32, 120, 65, 255)
+	if nowHover {
+		nowCol = rl.NewColor(42, 155, 80, 255)
+		if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
+			upState.IsUpdating = true
+			go func() {
+				err := updater.ApplyUpdate(upState.Latest, func(pct float32) {
+					upState.Progress = pct
+				})
+				upState.IsUpdating = false
+				if err != nil {
+					upState.ErrorMessage = err.Error()
+				} else {
+					upState.Success = true
+				}
+			}()
+		}
+	}
+	rl.DrawRectangleRounded(nowRec, 0.2, 4, nowCol)
+	rl.DrawRectangleRoundedLines(nowRec, 0.2, 4, rl.Lime)
+	ui.DrawText("🚀 Atualizar Agora", int32(nowRec.X)+26, int32(nowRec.Y)+9, 14, rl.RayWhite)
+
+	// Button 2: Lembrar Mais Tarde
+	laterRec := rl.NewRectangle(modalX+28+btnW, float32(curY), btnW, btnH)
+	laterHover := rl.CheckCollisionPointRec(mousePos, laterRec)
+	laterCol := rl.NewColor(45, 48, 62, 255)
+	if laterHover {
+		laterCol = rl.NewColor(60, 65, 85, 255)
+		if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
+			upState.ShowPopup = false
+			upState.Dismissed = true
+		}
+	}
+	rl.DrawRectangleRounded(laterRec, 0.2, 4, laterCol)
+	rl.DrawRectangleRoundedLines(laterRec, 0.2, 4, rl.Gray)
+	ui.DrawText("⏰ Lembrar Depois", int32(laterRec.X)+24, int32(laterRec.Y)+9, 14, rl.RayWhite)
 }
