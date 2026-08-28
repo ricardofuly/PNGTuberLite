@@ -3,9 +3,9 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"pngtuber-lite/assets"
 )
 
 // Icon IDs mapped from the sprite atlas
@@ -62,28 +62,16 @@ var GlobalIcons = &IconManager{
 	Frames: make(map[int]rl.Rectangle),
 }
 
-// Load loads the icon atlas and logo textures into GPU memory.
+// Load loads the icon atlas and logo textures into GPU memory from embedded assets.
 func (im *IconManager) Load() error {
 	if !rl.IsWindowReady() {
 		return nil
 	}
 
-	// 1. Load Sprite Atlas JSON
-	jsonPaths := []string{
-		"assets/icons/IconsFlat-32.json",
-		"../assets/icons/IconsFlat-32.json",
-	}
-	var jsonData []byte
-	for _, p := range jsonPaths {
-		if d, err := os.ReadFile(p); err == nil {
-			jsonData = d
-			break
-		}
-	}
-
-	if len(jsonData) > 0 {
+	// 1. Parse Atlas JSON from embedded assets
+	if len(assets.IconsAtlasJSON) > 0 {
 		var a atlasJSON
-		if err := json.Unmarshal(jsonData, &a); err == nil {
+		if err := json.Unmarshal(assets.IconsAtlasJSON, &a); err == nil {
 			for i := 0; i < 100; i++ {
 				key := fmt.Sprintf("IconsFlat-32 %d.ase", i)
 				if f, ok := a.Frames[key]; ok {
@@ -102,34 +90,24 @@ func (im *IconManager) Load() error {
 		}
 	}
 
-	// 2. Load Sprite Atlas Texture
-	pngPaths := []string{
-		"assets/icons/IconsFlat-32.png",
-		"../assets/icons/IconsFlat-32.png",
-	}
-	for _, p := range pngPaths {
-		if _, err := os.Stat(p); err == nil {
-			im.AtlasTexture = rl.LoadTexture(p)
+	// 2. Load Sprite Atlas Texture from embedded memory
+	if len(assets.IconsAtlasPNG) > 0 {
+		atlasImg := rl.LoadImageFromMemory(".png", assets.IconsAtlasPNG, int32(len(assets.IconsAtlasPNG)))
+		if atlasImg.Width > 0 {
+			im.AtlasTexture = rl.LoadTextureFromImage(atlasImg)
 			rl.SetTextureFilter(im.AtlasTexture, rl.FilterPoint) // Crisp pixel art icons
-			break
+			rl.UnloadImage(atlasImg)
 		}
 	}
 
-	// 3. Load Application Logo
-	logoPaths := []string{
-		"assets/icons/logo.png",
-		"../assets/icons/logo.png",
-	}
-	for _, p := range logoPaths {
-		if _, err := os.Stat(p); err == nil {
-			logoImg := rl.LoadImage(p)
-			if logoImg.Width > 0 {
-				rl.SetWindowIcon(*logoImg)
-				im.LogoTexture = rl.LoadTextureFromImage(logoImg)
-				rl.SetTextureFilter(im.LogoTexture, rl.FilterBilinear)
-				rl.UnloadImage(logoImg)
-				break
-			}
+	// 3. Load Application Logo from embedded memory & set OS Window Icon
+	if len(assets.AppLogoPNG) > 0 {
+		logoImg := rl.LoadImageFromMemory(".png", assets.AppLogoPNG, int32(len(assets.AppLogoPNG)))
+		if logoImg.Width > 0 {
+			rl.SetWindowIcon(*logoImg)
+			im.LogoTexture = rl.LoadTextureFromImage(logoImg)
+			rl.SetTextureFilter(im.LogoTexture, rl.FilterBilinear)
+			rl.UnloadImage(logoImg)
 		}
 	}
 

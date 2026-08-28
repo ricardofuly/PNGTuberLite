@@ -10,11 +10,13 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 // CurrentVersion is the active build version. Injected via -ldflags during build.
@@ -39,6 +41,7 @@ type ReleaseInfo struct {
 	TagName     string         `json:"tag_name"`
 	Name        string         `json:"name"`
 	Body        string         `json:"body"`
+	HTMLURL     string         `json:"html_url"`
 	PublishedAt time.Time      `json:"published_at"`
 	Assets      []ReleaseAsset `json:"assets"`
 	IsHotfix    bool           `json:"-"`
@@ -47,48 +50,109 @@ type ReleaseInfo struct {
 // GetCleanSummary extracts short readable changelog bullet points from release body.
 func (r *ReleaseInfo) GetCleanSummary() []string {
 	if r == nil || strings.TrimSpace(r.Body) == "" {
-		return []string{"• Correções de bugs e otimizações de performance.", "• Atualizações de estabilidade e novos recursos."}
+		return []string{
+			"• Correções de bugs e otimizações de performance.",
+			"• Atualizações de estabilidade e novos recursos.",
+		}
 	}
 
 	lines := strings.Split(r.Body, "\n")
 	var summary []string
 	for _, l := range lines {
 		trimmed := strings.TrimSpace(l)
-		if trimmed == "" || strings.HasPrefix(trimmed, "Full Changelog:") || strings.HasPrefix(trimmed, "#") {
+		if trimmed == "" || strings.HasPrefix(trimmed, "Full Changelog:") || strings.HasPrefix(trimmed, "http://") || strings.HasPrefix(trimmed, "https://") {
 			continue
 		}
-		// Strip leading list symbols
-		clean := strings.TrimPrefix(trimmed, "- ")
-		clean = strings.TrimPrefix(clean, "* ")
-		if len(clean) > 55 {
-			clean = clean[:55] + "..."
+		// Skip markdown header markers
+		if strings.HasPrefix(trimmed, "##") || strings.HasPrefix(trimmed, "###") {
+			continue
 		}
+
+		clean := cleanChangelogLine(trimmed)
+		if clean == "" {
+			continue
+		}
+
 		summary = append(summary, "• "+clean)
-		if len(summary) >= 4 {
+		if len(summary) >= 5 {
 			break
 		}
 	}
+
 	if len(summary) == 0 {
-		return []string{"• Nova versão disponível com melhorias e correções."}
+		return []string{"• Nova versão disponível com melhorias e correções de desempenho."}
 	}
 	return summary
 }
 
-// UpdateState tracks background update check and progress.
-type UpdateState struct {
-	mu           sync.RWMutex
-	Checked      bool
-	Available    bool
-	ShowPopup    bool
-	Dismissed    bool
-	Latest       *ReleaseInfo
-	IsUpdating   bool
-	Progress     float32
-	ErrorMessage string
-	Success      bool
+func cleanChangelogLine(line string) string {
+	line = strings.TrimSpace(line)
+	line = strings.TrimLeft(line, "-*#• \t")
+	line = strings.TrimSpace(line)
+
+	// Remove "by @user in https://..." or "in https://..."
+	if idx := strings.Index(line, " by @"); idx != -1 {
+		line = line[:idx]
+	} else if idx := strings.Index(line, " in http"); idx != -1 {
+		line = line[:idx]
+	}
+
+	// Remove any remaining raw URLs
+	if idx := strings.Index(line, "http://"); idx != -1 {
+		line = strings.TrimSpace(line[:idx])
+	}
+	if idx := strings.Index(line, "https://"); idx != -1 {
+		line = strings.TrimSpace(line[:idx])
+	}
+
+	// Strip conventional commit prefix tags
+	prefixes := []string{
+		"feat(ui):", "feat(assets):", "feat(audio):", "feat(model):", "feat(updater):", "feat:",
+		"fix(ui):", "fix(audio):", "fix(ci):", "fix(updater):", "fix:",
+		"docs:", "refactor:", "perf:", "chore:",
+	}
+	for _, p := range prefixes {
+		if strings.HasPrefix(strings.ToLower(line), p) {
+			line = strings.TrimSpace(line[len(p):])
+			break
+		}
+	}
+
+	line = strings.TrimSpace(line)
+	if len(line) == 0 {
+		return ""
+	}
+
+	// Capitalize first letter
+	runes := []rune(line)
+	runes[0] = unicode.ToUpper(runes[0])
+	line = string(runes)
+
+	if len(line) > 65 {
+		line = line[:62] + "..."
+	}
+	return line
 }
 
-var globalUpdateState = &UpdateState{}
+// UpdateState tracks background update check, progress, and auto-restart countdown.
+type UpdateState struct {
+	mu               sync.RWMutex
+	Checked          bool
+	Available        bool
+	ShowPopup        bool
+	Dismissed        bool
+	Latest           *ReleaseInfo
+	IsUpdating       bool
+	Progress         float32
+	ErrorMessage     string
+	Success          bool
+	RestartCountdown float32
+	RestartTriggered bool
+}
+
+var globalUpdateState = &UpdateState{
+	RestartCountdown: 2.0,
+}
 
 // GetUpdateState returns the current update status.
 func GetUpdateState() *UpdateState {
@@ -166,7 +230,6 @@ func isNewerVersion(remote, local string) bool {
 		return false
 	}
 
-	// Simple semantic comparison: e.g. "1.0.1" > "1.0.0"
 	var rMaj, rMin, rPat int
 	var lMaj, lMin, lPat int
 	fmt.Sscanf(remoteClean, "%d.%d.%d", &rMaj, &rMin, &rPat)
@@ -190,7 +253,6 @@ func ApplyUpdate(rel *ReleaseInfo, progressCallback func(percent float32)) error
 		return fmt.Errorf("nenhum arquivo disponível para download")
 	}
 
-	// Match asset name by OS
 	osName := runtime.GOOS
 	archName := runtime.GOARCH
 
@@ -203,7 +265,6 @@ func ApplyUpdate(rel *ReleaseInfo, progressCallback func(percent float32)) error
 		}
 	}
 
-	// Fallback to any matching OS asset
 	if targetAsset == nil {
 		for _, asset := range rel.Assets {
 			if strings.Contains(strings.ToLower(asset.Name), osName) {
@@ -218,7 +279,7 @@ func ApplyUpdate(rel *ReleaseInfo, progressCallback func(percent float32)) error
 	}
 
 	// Download archive into memory
-	client := &http.Client{Timeout: 60 * time.Second}
+	client := &http.Client{Timeout: 90 * time.Second}
 	req, err := http.NewRequest("GET", targetAsset.BrowserDownloadURL, nil)
 	if err != nil {
 		return err
@@ -240,7 +301,6 @@ func ApplyUpdate(rel *ReleaseInfo, progressCallback func(percent float32)) error
 		totalSize = resp.ContentLength
 	}
 
-	// Read with progress tracking
 	var buf bytes.Buffer
 	progressReader := &progressTracker{
 		reader:   resp.Body,
@@ -273,7 +333,6 @@ func ApplyUpdate(rel *ReleaseInfo, progressCallback func(percent float32)) error
 
 	// Rename current executable to .old
 	if err := os.Rename(execPath, oldPath); err != nil {
-		// If rename fails, try direct write (on Linux)
 		if err := os.WriteFile(execPath, newBinaryBytes, 0755); err != nil {
 			return fmt.Errorf("falha ao substituir executável: %w", err)
 		}
@@ -282,11 +341,51 @@ func ApplyUpdate(rel *ReleaseInfo, progressCallback func(percent float32)) error
 
 	// Write new binary
 	if err := os.WriteFile(execPath, newBinaryBytes, 0755); err != nil {
-		// Restore old binary on failure
 		_ = os.Rename(oldPath, execPath)
 		return fmt.Errorf("falha ao gravar nova versão: %w", err)
 	}
 
+	return nil
+}
+
+// OpenBrowser opens a URL in the user's default browser.
+func OpenBrowser(url string) error {
+	if url == "" {
+		return nil
+	}
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "linux":
+		cmd = exec.Command("xdg-open", url)
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", "", url)
+	case "darwin":
+		cmd = exec.Command("open", url)
+	default:
+		return fmt.Errorf("sistema operacional não suportado")
+	}
+	return cmd.Start()
+}
+
+// RestartApp restarts the currently running application binary cleanly.
+func RestartApp() error {
+	execPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("falha ao obter executável: %w", err)
+	}
+	execPath, err = filepath.EvalSymlinks(execPath)
+	if err != nil {
+		return fmt.Errorf("falha ao resolver symlink: %w", err)
+	}
+
+	cmd := exec.Command(execPath, os.Args[1:]...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("falha ao iniciar novo processo: %w", err)
+	}
+	os.Exit(0)
 	return nil
 }
 
@@ -354,6 +453,5 @@ func extractExecutableFromArchive(data []byte, filename string) ([]byte, error) 
 		}
 	}
 
-	// If direct binary download
 	return data, nil
 }

@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"pngtuber-lite/pkg/anim"
@@ -68,7 +69,9 @@ func main() {
 		if err != nil {
 			log.Fatalf("Falha na atualização: %v\n", err)
 		}
-		fmt.Printf("✓ Atualizado com sucesso para %s! Reinicie o aplicativo.\n", rel.TagName)
+		fmt.Printf("✓ Atualizado com sucesso para %s! Reiniciando aplicativo...\n", rel.TagName)
+		time.Sleep(600 * time.Millisecond)
+		_ = updater.RestartApp()
 		os.Exit(0)
 	}
 

@@ -158,6 +158,11 @@ jobs:
         with:
           name: pngtuber-lite-windows-amd64
 
+      - name: Checkout Code for Changelog
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Generate Checksums
         run: |
           sha256sum pngtuber-lite-linux-amd64.tar.gz pngtuber-lite-windows-amd64.zip > checksums.txt
@@ -171,15 +176,49 @@ jobs:
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
+      - name: Generate Written Changelog Notes
+        id: notes
+        run: |
+          TAG="${{ steps.get_tag.outputs.tag }}"
+          PREV_TAG=$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || echo "")
+
+          cat << EOF > release_notes.md
+## 🎮 PNGTuber Lite $TAG
+
+### ✨ Destaques e Novidades:
+EOF
+
+          if [ -n "$PREV_TAG" ]; then
+            git log "${PREV_TAG}..${TAG}" --pretty=format:"- %s" | grep -v "Merge " | sed 's/^- feat(assets): /- /g; s/^- feat(ui): /- /g; s/^- feat(updater): /- /g; s/^- feat: /- /g; s/^- fix(ui): /- /g; s/^- fix(updater): /- /g; s/^- fix: /- /g; s/^- docs: /- /g' >> release_notes.md
+            echo "" >> release_notes.md
+          else
+            cat << 'EOF' >> release_notes.md
+- Ícones embutidos em Sprite Atlas (32x32px) com renderização nativa via GPU.
+- Logo oficial do Gopher Gamer na interface e na barra de tarefas do sistema.
+- Auto-restart instantâneo após atualização concluída.
+- Changelog limpo no modal e suporte a ver release no navegador.
+- Suporte a transparência no OBS sem necessidade de Chroma Key.
+EOF
+          fi
+
+          cat << 'EOF' >> release_notes.md
+
+### 📦 Como Executar e Atualizar:
+- **Linux**: Extraia `pngtuber-lite-linux-amd64.tar.gz` e execute `./pngtuber-lite`
+- **Windows**: Extraia `pngtuber-lite-windows-amd64.zip` e execute `pngtuber-lite.exe`
+- **Auto-Update**: Pelo aplicativo, clique em `[ ATUALIZAR ]` ou no terminal execute `./pngtuber-lite -update`. O app reinicia sozinho automaticamente ao terminar!
+EOF
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.get_tag.outputs.tag }}
           name: "PNGTuber Lite ${{ steps.get_tag.outputs.tag }}"
+          body_path: release_notes.md
           files: |
             pngtuber-lite-linux-amd64.tar.gz
             pngtuber-lite-windows-amd64.zip
             checksums.txt
           draft: false
           prerelease: false
-          generate_release_notes: true
+          generate_release_notes: false

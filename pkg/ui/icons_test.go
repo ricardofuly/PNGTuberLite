@@ -1,37 +1,41 @@
 package ui
 
 import (
-	"os"
+	"encoding/json"
 	"testing"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"pngtuber-lite/assets"
 )
 
-func TestIconAtlasParsing(t *testing.T) {
-	jsonPaths := []string{
-		"../../assets/icons/IconsFlat-32.json",
-		"assets/icons/IconsFlat-32.json",
+func TestEmbeddedAssets(t *testing.T) {
+	if len(assets.IconsAtlasJSON) == 0 {
+		t.Fatalf("assets.IconsAtlasJSON is empty")
 	}
-	var foundPath string
-	for _, p := range jsonPaths {
-		if _, err := os.Stat(p); err == nil {
-			foundPath = p
-			break
-		}
+	if len(assets.IconsAtlasPNG) == 0 {
+		t.Fatalf("assets.IconsAtlasPNG is empty")
 	}
-	if foundPath == "" {
-		t.Skip("assets/icons/IconsFlat-32.json not found in test path")
+	if len(assets.AppLogoPNG) == 0 {
+		t.Fatalf("assets.AppLogoPNG is empty")
 	}
 
-	im := &IconManager{
-		Frames: make(map[int]rl.Rectangle),
+	var a atlasJSON
+	if err := json.Unmarshal(assets.IconsAtlasJSON, &a); err != nil {
+		t.Fatalf("failed to unmarshal embedded atlas JSON: %v", err)
 	}
-	data, err := os.ReadFile(foundPath)
-	if err != nil {
-		t.Fatalf("failed to read atlas json: %v", err)
+	if len(a.Frames) == 0 {
+		t.Fatalf("no frames parsed from embedded atlas JSON")
 	}
-	if len(data) == 0 {
-		t.Fatalf("atlas json is empty")
+
+	atlasImg := rl.LoadImageFromMemory(".png", assets.IconsAtlasPNG, int32(len(assets.IconsAtlasPNG)))
+	if atlasImg.Width != 320 || atlasImg.Height != 320 {
+		t.Fatalf("unexpected atlas image dimensions: %dx%d", atlasImg.Width, atlasImg.Height)
 	}
-	_ = im
+	rl.UnloadImage(atlasImg)
+
+	logoImg := rl.LoadImageFromMemory(".png", assets.AppLogoPNG, int32(len(assets.AppLogoPNG)))
+	if logoImg.Width == 0 || logoImg.Height == 0 {
+		t.Fatalf("invalid logo image dimensions: %dx%d", logoImg.Width, logoImg.Height)
+	}
+	rl.UnloadImage(logoImg)
 }

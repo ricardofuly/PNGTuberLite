@@ -221,19 +221,24 @@ func (ui *UIState) Draw(
 		upBgColor := rl.NewColor(30, 110, 60, 235)
 		if upHovered {
 			upBgColor = rl.NewColor(40, 145, 75, 255)
-			if rl.IsMouseButtonPressed(rl.MouseLeftButton) && !upState.IsUpdating && !upState.Success {
-				upState.IsUpdating = true
-				go func() {
-					err := updater.ApplyUpdate(upState.Latest, func(pct float32) {
-						upState.Progress = pct
-					})
-					upState.IsUpdating = false
-					if err != nil {
-						upState.ErrorMessage = err.Error()
-					} else {
-						upState.Success = true
-					}
-				}()
+			if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
+				if upState.Success {
+					go updater.RestartApp()
+				} else if !upState.IsUpdating {
+					upState.IsUpdating = true
+					go func() {
+						err := updater.ApplyUpdate(upState.Latest, func(pct float32) {
+							upState.Progress = pct
+						})
+						upState.IsUpdating = false
+						if err != nil {
+							upState.ErrorMessage = err.Error()
+						} else {
+							upState.Success = true
+							upState.RestartCountdown = 2.0
+						}
+					}()
+				}
 			}
 		}
 		rl.DrawRectangleRounded(upBtnRec, 0.3, 4, upBgColor)
@@ -893,8 +898,8 @@ func (ui *UIState) drawUpdateModal(mousePos rl.Vector2, screenW, screenH float32
 	rl.DrawRectangle(0, 0, int32(screenW), int32(screenH), rl.NewColor(0, 0, 0, 195))
 
 	// 2. Centered Modal Box
-	modalW := float32(490)
-	modalH := float32(310)
+	modalW := float32(520)
+	modalH := float32(330)
 	modalX := (screenW - modalW) / 2
 	modalY := (screenH - modalH) / 2
 	if modalX < 10 {
@@ -917,15 +922,33 @@ func (ui *UIState) drawUpdateModal(mousePos rl.Vector2, screenW, screenH float32
 	if upState.Latest.IsHotfix {
 		titleText = fmt.Sprintf("Hotfix Importante Disponível! (%s)", tag)
 	}
-	GlobalIcons.DrawIcon(IconDownload, modalX+20, float32(curY), 20, rl.Lime)
-	ui.DrawText(titleText, int32(modalX)+46, curY, 16, rl.RayWhite)
+	GlobalIcons.DrawIcon(IconDownload, modalX+18, float32(curY), 20, rl.Lime)
+	ui.DrawText(titleText, int32(modalX)+44, curY, 16, rl.RayWhite)
+
+	// GitHub Web Link Button (Top Right of Modal)
+	webBtnRec := rl.NewRectangle(modalX+modalW-135, float32(curY)-2, 120, 24)
+	if rl.CheckCollisionPointRec(mousePos, webBtnRec) {
+		rl.DrawRectangleRounded(webBtnRec, 0.2, 4, rl.NewColor(40, 60, 95, 255))
+		if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
+			targetURL := upState.Latest.HTMLURL
+			if targetURL == "" {
+				targetURL = fmt.Sprintf("https://github.com/ricardofuly/PNGTuberLite/releases/tag/%s", tag)
+			}
+			_ = updater.OpenBrowser(targetURL)
+		}
+	} else {
+		rl.DrawRectangleRounded(webBtnRec, 0.2, 4, rl.NewColor(26, 36, 56, 255))
+	}
+	GlobalIcons.DrawIcon(IconSearch, webBtnRec.X+6, webBtnRec.Y+4, 14, rl.SkyBlue)
+	ui.DrawText("Ver no GitHub", int32(webBtnRec.X)+24, int32(webBtnRec.Y)+5, 11, rl.SkyBlue)
+
 	curY += 24
 
 	ui.DrawText(fmt.Sprintf("Versão Atual: %s  ➜  Nova Versão: %s", updater.CurrentVersion, tag), int32(modalX)+20, curY, 13, rl.Lime)
 	curY += 24
 
 	// Summary box
-	boxH := float32(110)
+	boxH := float32(125)
 	boxRec := rl.NewRectangle(modalX+16, float32(curY), modalW-32, boxH)
 	rl.DrawRectangleRounded(boxRec, 0.04, 4, rl.NewColor(10, 14, 22, 255))
 	rl.DrawRectangleRoundedLines(boxRec, 0.04, 4, rl.NewColor(35, 55, 90, 255))
@@ -942,7 +965,7 @@ func (ui *UIState) drawUpdateModal(mousePos rl.Vector2, screenW, screenH float32
 	// Updating state
 	if upState.IsUpdating {
 		barW := modalW - 32
-		barRec := rl.NewRectangle(modalX+16, float32(curY), barW, 24)
+		barRec := rl.NewRectangle(modalX+16, float32(curY), barW, 26)
 		rl.DrawRectangleRounded(barRec, 0.3, 4, rl.DarkGray)
 
 		fillW := barW * upState.Progress
@@ -951,27 +974,38 @@ func (ui *UIState) drawUpdateModal(mousePos rl.Vector2, screenW, screenH float32
 		}
 		rl.DrawRectangleRounded(rl.NewRectangle(barRec.X, barRec.Y, fillW, barRec.Height), 0.3, 4, rl.Lime)
 
-		ui.DrawText(fmt.Sprintf("Baixando e instalando atualização... %d%%", int(upState.Progress*100)), int32(modalX)+20, curY+4, 12, rl.RayWhite)
+		ui.DrawText(fmt.Sprintf("Baixando e aplicando atualização... %d%%", int(upState.Progress*100)), int32(modalX)+20, curY+5, 12, rl.RayWhite)
 		return
 	}
 
-	// Success state
+	// Success state & Automatic Restart
 	if upState.Success {
 		ui.DrawText("✓ Atualização instalada com sucesso!", int32(modalX)+20, curY, 14, rl.Lime)
-		ui.DrawText("Reinicie o aplicativo para aplicar a nova versão.", int32(modalX)+20, curY+18, 12, rl.LightGray)
 
-		closeRec := rl.NewRectangle(modalX+modalW-130, float32(curY+8), 114, 34)
-		if rl.CheckCollisionPointRec(mousePos, closeRec) {
-			rl.DrawRectangleRounded(closeRec, 0.2, 4, rl.NewColor(50, 75, 120, 255))
+		upState.RestartCountdown -= rl.GetFrameTime()
+		if upState.RestartCountdown < 0 {
+			upState.RestartCountdown = 0
+		}
+		ui.DrawText(fmt.Sprintf("Reiniciando automaticamente em %.1fs...", upState.RestartCountdown), int32(modalX)+20, curY+18, 12, rl.Yellow)
+
+		// Instant Restart button
+		reBtn := rl.NewRectangle(modalX+modalW-150, float32(curY+4), 134, 32)
+		if rl.CheckCollisionPointRec(mousePos, reBtn) {
+			rl.DrawRectangleRounded(reBtn, 0.2, 4, rl.NewColor(42, 145, 75, 255))
 			if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
-				upState.ShowPopup = false
-				upState.Dismissed = true
+				go updater.RestartApp()
 			}
 		} else {
-			rl.DrawRectangleRounded(closeRec, 0.2, 4, rl.NewColor(35, 55, 90, 255))
+			rl.DrawRectangleRounded(reBtn, 0.2, 4, rl.NewColor(32, 110, 60, 255))
 		}
-		GlobalIcons.DrawIcon(IconClose, closeRec.X+16, closeRec.Y+8, 16, rl.RayWhite)
-		ui.DrawText("Fechar", int32(closeRec.X)+38, int32(closeRec.Y)+9, 13, rl.RayWhite)
+		GlobalIcons.DrawIcon(IconDownload, reBtn.X+8, reBtn.Y+7, 16, rl.White)
+		ui.DrawText("Reiniciar Agora", int32(reBtn.X)+28, int32(reBtn.Y)+8, 12, rl.RayWhite)
+
+		// Auto trigger restart when countdown reaches zero
+		if !upState.RestartTriggered && upState.RestartCountdown <= 0 {
+			upState.RestartTriggered = true
+			go updater.RestartApp()
+		}
 		return
 	}
 
@@ -1000,14 +1034,15 @@ func (ui *UIState) drawUpdateModal(mousePos rl.Vector2, screenW, screenH float32
 					upState.ErrorMessage = err.Error()
 				} else {
 					upState.Success = true
+					upState.RestartCountdown = 2.0
 				}
 			}()
 		}
 	}
 	rl.DrawRectangleRounded(nowRec, 0.2, 4, nowCol)
 	rl.DrawRectangleRoundedLines(nowRec, 0.2, 4, rl.Lime)
-	GlobalIcons.DrawIcon(IconDownload, nowRec.X+16, nowRec.Y+9, 18, rl.White)
-	ui.DrawText("Atualizar Agora", int32(nowRec.X)+40, int32(nowRec.Y)+9, 14, rl.RayWhite)
+	GlobalIcons.DrawIcon(IconDownload, nowRec.X+24, nowRec.Y+9, 18, rl.White)
+	ui.DrawText("Atualizar Agora", int32(nowRec.X)+50, int32(nowRec.Y)+9, 14, rl.RayWhite)
 
 	// Button 2: Lembrar Mais Tarde
 	laterRec := rl.NewRectangle(modalX+28+btnW, float32(curY), btnW, btnH)
@@ -1022,6 +1057,6 @@ func (ui *UIState) drawUpdateModal(mousePos rl.Vector2, screenW, screenH float32
 	}
 	rl.DrawRectangleRounded(laterRec, 0.2, 4, laterCol)
 	rl.DrawRectangleRoundedLines(laterRec, 0.2, 4, rl.Gray)
-	GlobalIcons.DrawIcon(IconClock, laterRec.X+16, laterRec.Y+9, 18, rl.White)
-	ui.DrawText("Lembrar Depois", int32(laterRec.X)+40, int32(laterRec.Y)+9, 14, rl.RayWhite)
+	GlobalIcons.DrawIcon(IconClock, laterRec.X+24, laterRec.Y+9, 18, rl.White)
+	ui.DrawText("Lembrar Depois", int32(laterRec.X)+50, int32(laterRec.Y)+9, 14, rl.RayWhite)
 }
