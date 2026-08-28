@@ -182,32 +182,26 @@ jobs:
           TAG="${{ steps.get_tag.outputs.tag }}"
           PREV_TAG=$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || echo "")
 
-          cat << EOF > release_notes.md
-## 🎮 PNGTuber Lite $TAG
-
-### ✨ Destaques e Novidades:
-EOF
+          echo "## 🎮 PNGTuber Lite $TAG" > release_notes.md
+          echo "" >> release_notes.md
+          echo "### ✨ Destaques e Novidades:" >> release_notes.md
 
           if [ -n "$PREV_TAG" ]; then
             git log "${PREV_TAG}..${TAG}" --pretty=format:"- %s" | grep -v "Merge " | sed 's/^- feat(assets): /- /g; s/^- feat(ui): /- /g; s/^- feat(updater): /- /g; s/^- feat: /- /g; s/^- fix(ui): /- /g; s/^- fix(updater): /- /g; s/^- fix: /- /g; s/^- docs: /- /g' >> release_notes.md
             echo "" >> release_notes.md
           else
-            cat << 'EOF' >> release_notes.md
-- Ícones embutidos em Sprite Atlas (32x32px) com renderização nativa via GPU.
-- Logo oficial do Gopher Gamer na interface e na barra de tarefas do sistema.
-- Auto-restart instantâneo após atualização concluída.
-- Changelog limpo no modal e suporte a ver release no navegador.
-- Suporte a transparência no OBS sem necessidade de Chroma Key.
-EOF
+            echo "- Ícones embutidos em Sprite Atlas (32x32px) com renderização nativa via GPU." >> release_notes.md
+            echo "- Logo oficial do Gopher Gamer na interface e na barra de tarefas do sistema." >> release_notes.md
+            echo "- Auto-restart instantâneo após atualização concluída." >> release_notes.md
+            echo "- Changelog limpo no modal e suporte a ver release no navegador." >> release_notes.md
+            echo "- Suporte a transparência no OBS sem necessidade de Chroma Key." >> release_notes.md
           fi
 
-          cat << 'EOF' >> release_notes.md
-
-### 📦 Como Executar e Atualizar:
-- **Linux**: Extraia `pngtuber-lite-linux-amd64.tar.gz` e execute `./pngtuber-lite`
-- **Windows**: Extraia `pngtuber-lite-windows-amd64.zip` e execute `pngtuber-lite.exe`
-- **Auto-Update**: Pelo aplicativo, clique em `[ ATUALIZAR ]` ou no terminal execute `./pngtuber-lite -update`. O app reinicia sozinho automaticamente ao terminar!
-EOF
+          echo "" >> release_notes.md
+          echo "### 📦 Como Executar e Atualizar:" >> release_notes.md
+          echo "- **Linux**: Extraia \`pngtuber-lite-linux-amd64.tar.gz\` e execute \`./pngtuber-lite\`" >> release_notes.md
+          echo "- **Windows**: Extraia \`pngtuber-lite-windows-amd64.zip\` e execute \`pngtuber-lite.exe\`" >> release_notes.md
+          echo "- **Auto-Update**: Pelo aplicativo, clique em \`[ ATUALIZAR ]\` ou no terminal execute \`./pngtuber-lite -update\`. O app reinicia sozinho automaticamente ao terminar!" >> release_notes.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
