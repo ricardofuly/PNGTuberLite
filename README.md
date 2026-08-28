@@ -7,14 +7,16 @@
 ## ✨ Recursos
 
 - 🚀 **Ultra-leve e Instantâneo**: Consumo mínimo de memória RAM (< 30MB) e uso desprezível de CPU.
-- 🎨 **Compatibilidade Nativa com `.save`**: Lê arquivos `.save` do PNGTuber-Plus sem necessidade de conversão manual.
-- 🗂️ **Ícones Nativos & Ícone Oficial do App**: Suporte completo a ícones renderizados via GPU e ícone oficial integrado para Windows (`.ico`/`.syso`) e Linux (`rl.SetWindowIcon`).
+- 🌐 **Suporte a Múltiplos Idiomas (i18n)**: Suporte nativo a Português (`pt-BR`) e Inglês (`en-US`), com troca instantânea em tempo real e descoberta automática de novos idiomas adicionados em `pkg/i18n/locales/`.
+- 🎨 **Compatibilidade Nativa com `.save`**: Lê e exporta arquivos `.save` do PNGTuber-Plus sem necessidade de conversão manual.
+- 🗂️ **Ícones Nativos & Ícone Oficial do App**: Renderização de ícones embutidos via GPU e ícone oficial integrado para Windows (`.ico`/`.syso`) e Linux (`rl.SetWindowIcon`).
 - 📌 **Bandeja do Sistema (System Tray)**: Permite minimizar o app para a bandeja com menu rápido ("Abrir PNGTuber Lite" e "Sair") e confirmação inteligente ao fechar.
-- ⚙️ **Painel de Controle Flutuante (Menu UI)**: Pressione `TAB`, `ESC`, `C` ou clique no botão `[ CONFIG ]` no canto da tela para abrir o menu com abas:
-  - 📁 **Avatar**: Seleção e troca de avatares `.save` em tempo real sem reiniciar o app.
+- 📊 **Telemetria & Profiler em Tempo Real (`F3`)**: HUD com amostragem de CPU (% do processo e sistema), RAM Física (RSS), Go Heap, VRAM GPU, frametimes com gráficos de sparkline em tempo real e barras de progresso com interpolação suave.
+- ⚙️ **Painel de Controle Flutuante (Menu UI)**: Pressione `M`, `TAB`, `ESC` ou clique no botão flutuante no canto da tela para abrir o menu com abas:
+  - 📁 **Avatar**: Seleção e troca de avatares `.save`, criação de novo avatar, importação de pastas PNG, alternador de idioma e espelhamento horizontal.
   - 🎙️ **Áudio**: VU Meter com volume ao vivo, seletor de microfones do SO e calibração de sensibilidade.
   - 👔 **Roupas**: Botões dos 10 figurinos com alternância instantânea.
-  - 🌀 **Física**: Sliders de força do pulo, gravidade e velocidade do piscar.
+  - 🌀 **Física**: Sliders de força do pulo, gravidade, inércia (wobble), respiração e velocidade do piscar.
   - ⌨️ **Teclas**: Visualização e remapeamento interativo de todos os atalhos.
   - 🪟 **OBS**: Ativação do modo overlay em 1 clique, seletor de fundos (Transparente, Verde Chroma Key, Magenta, Azul) e guia passo a passo.
 - 🌊 **Física Hierárquica Completa**: Propagação de inércia do corpo para a cabeça e da cabeça para os cabelos e roupas com spring-damper, arrasto e esticamento dinâmico.
@@ -30,7 +32,7 @@ go run .
 
 ### Compilar o executável nativo:
 ```bash
-go build -o pngtuber-lite .
+go build -ldflags="-s -w" -o pngtuber-lite main.go
 ```
 
 ### Ou via Makefile:
@@ -53,7 +55,7 @@ make
 
 O PNGTuber Lite inclui um **Editor Visual Completo**, permitindo criar novos avatares ou customizar avatares existentes com facilidade:
 
-- **Como abrir o Editor**: Clique no botão **`[✏ EDITOR]`** no topo, no botão da aba de avatares, ou pressione a tecla **`E`** (ou **`F2`**).
+- **Como abrir o Editor**: Clique no botão flutuante **`[ ✏ EDITOR ]`** no topo, no botão da aba de avatares, ou pressione a tecla **`E`** (ou **`F2`**).
 - **Arrastar e Soltar (Drag & Drop)**:
   - Arraste qualquer arquivo **`.png`** para a janela para adicionar uma nova camada instantaneamente.
   - Arraste qualquer arquivo **`.save`** para carregar um avatar diretamente no editor.
@@ -66,38 +68,39 @@ O PNGTuber Lite inclui um **Editor Visual Completo**, permitindo criar novos ava
   - **Visibilidade**: Configure se a camada aparece em repouso (silêncio), falando (boca aberta), com olhos normais ou piscando.
   - **Figurinos**: Selecione em quais dos 10 figurinos a camada está ativa.
   - **Física**: Inércia angular (`rotDrag`), limites de rotação (`rLimitMin`/`rLimitMax`), respiração senoidal (`YAmp`), elasticidade (`stretch`) e pulo.
-- **Salvar**: Clique em **`[💾 SALVAR]`** para gerar o arquivo `.save` 100% compatível tanto com o PNGTuber Lite quanto com o PNGTuber-Plus!
+  - **SpriteSheets**: Suporte a animações em spritesheets com configuração de número de quadros e velocidade (FPS).
+- **Salvar**: Clique em **`[ 💾 SALVAR ]`** para gerar o arquivo `.save` 100% compatível tanto com o PNGTuber Lite quanto com o PNGTuber-Plus!
 
 ---
 
 ## 🎮 Controles e Atalhos (100% Customizáveis na aba `Teclas`)
 
-Todos os atalhos de teclado podem ser visualizados e remapeados facilmente na nova aba **`Teclas`** do menu de configurações! Os atalhos padrão são:
+Todos os atalhos de teclado podem ser visualizados e remapeados facilmente na aba **`Teclas`** do menu de configurações! Os atalhos padrão são:
 
 | Atalho / Tecla | Ação |
 | :--- | :--- |
 | **`E`** ou **`F2`** | Abrir / Fechar o **Editor Visual de Avatar** |
-| **`TAB`** ou **`C`** | Abrir / Fechar o **Menu de Configurações (Drawer)** |
+| **`M`** ou **`TAB`** | Abrir / Fechar o **Menu de Configurações (Drawer)** |
 | **`ESC`** | Fechar menu ou editor ativo |
+| **`F3`** | Alternar Painel de **Telemetria & Profiler HUD** (CPU, RAM, GPU, Frametimes) |
 | **`1` a `9`, `0`** | Trocar entre os Figurinos 1 a 10 |
 | **`Botão Esquerdo/Direito` (Arrastar)** | Mover o avatar na tela |
 | **`Scroll do Mouse`** | Zoom / Escala do avatar (0.1x a 5.0x) |
-| **`F9`** | Alternar Modo Click-Through (clicar através do avatar) |
-| **`F10`** | Alternar Janela Sem Bordas (Borderless Overlay) |
-| **`F11`** | Alternar Sempre no Topo (Always on Top) |
+| **`F9`** | Alternar Modo **Click-Through** (clicar através do avatar) |
+| **`F10`** | Alternar Janela **Sem Bordas (Borderless Overlay)** |
+| **`F11`** | Alternar **Sempre no Topo (Always on Top)** |
 | **`+` / `-`** | Ajustar sensibilidade do microfone |
 | **`Espaço`** | Testar pulo e piscar |
 | **`R`** | Resetar posição e escala do avatar para o centro |
-| **`H`** ou **`F1`** | Alternar HUD de Debug |
 
 ---
 
-## 🚀 Sistema de Auto-Update e Hotfix Integrado
+## 🚀 Sistema de Auto-Update e Auto-Restart Integrado
 
 O PNGTuber Lite inclui um sistema inteligente de atualização e aplicação de hotfixes direto pelo GitHub Releases:
 
 - **Notificação Automática**: Ao iniciar, o app verifica silenciosamente se há novas versões disponíveis e exibe o botão **`[ 🚀 ATUALIZAR ]`** no topo.
-- **Atualização In-Place com 1 Clique**: Baixa a nova versão, substitui o executável automaticamente e avisa para reiniciar, sem necessidade de baixar e extrair arquivos manualmente!
+- **Atualização In-Place com 1 Clique & Auto-Restart**: Baixa a nova versão com barra de progresso, substitui o executável atomicamente e **reinicia o aplicativo automaticamente**, sem necessidade de intervenção manual!
 - **Linha de Comando (CLI)**:
   ```bash
   # Verificar se há atualizações disponíveis
@@ -114,16 +117,17 @@ O PNGTuber Lite inclui um sistema inteligente de atualização e aplicação de 
 
 ## 🏗️ Estrutura do Projeto
 
-- [`pkg/model`](pkg/model): Estruturas do avatar, camadas (`Layer`), vetor 2D, serializador e parser de `.save`.
+- [`pkg/i18n`](pkg/i18n): Sistema de internacionalização, detecção de idiomas e dicionários (`pt-BR`, `en-US`).
+- [`pkg/model`](pkg/model): Estruturas do avatar, camadas (`Layer`), vetor 2D, serializador, builder e parser de `.save`.
 - [`pkg/render`](pkg/render): Motor de renderização Raylib, cache de texturas GPU e cálculo de matrizes hierárquicas.
 - [`pkg/anim`](pkg/anim): Física de mola-amortecedor (wobble), piscar natural (blink), salto (bounce) e sprite-sheets.
 - [`pkg/audio`](pkg/audio): Captura de microfone com `malgo`, suporte a Easy Effects / DSP e VAD com histerese.
 - [`pkg/costume`](pkg/costume): Gerenciador dos 10 figurinos e visibilidade por slot.
 - [`pkg/config`](pkg/config): Configurações persistentes (`config.json`) e atalhos customizáveis (`keybinds.go`).
-- [`pkg/ui`](pkg/ui): Interface gráfica com abas (Avatar, Áudio, Roupas, Física, Teclas, OBS) e TrueType UTF-8.
+- [`pkg/ui`](pkg/ui): Interface gráfica com abas, layouts auto-ajustáveis, ícones GPU nativos e fontes TrueType.
 - [`pkg/editor`](pkg/editor): Editor visual de criação de avatares com gizmo no canvas, hierarquia e drag-and-drop.
-- [`pkg/profiler`](pkg/profiler): Monitoramento em tempo real de CPU (ticks), RAM Física (RSS), Go Heap e VRAM GPU.
+- [`pkg/profiler`](pkg/profiler): Monitoramento em tempo real de CPU (ticks /proc), RAM Física (RSS), Go Heap e VRAM GPU.
 - [`pkg/tray`](pkg/tray): Integração nativa com a bandeja do sistema (System Tray) para Windows e Linux.
-- [`pkg/updater`](pkg/updater): Verificação de releases no GitHub, in-place auto-updater e hotfixes.
-- [`assets/samples`](assets/samples): Arquivo `defaultAvatar.save` original de exemplo.
+- [`pkg/updater`](pkg/updater): Verificação de releases no GitHub, in-place auto-updater e auto-restart.
+- [`assets/samples`](assets/samples): Arquivos `.save` de exemplo (`defaultAvatar.save`, `slugcat.save`).
 
