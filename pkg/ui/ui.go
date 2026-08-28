@@ -177,13 +177,15 @@ func (ui *UIState) Draw(
 		}
 	}
 
-	btnText := "⚙ CONFIG"
-	if ui.IsOpen {
-		btnText = "✕ FECHAR"
-	}
 	rl.DrawRectangleRounded(menuBtnRec, 0.3, 4, btnBgColor)
 	rl.DrawRectangleRoundedLines(menuBtnRec, 0.3, 4, rl.SkyBlue)
-	ui.DrawText(btnText, int32(menuBtnRec.X)+12, int32(menuBtnRec.Y)+8, 15, rl.RayWhite)
+	if ui.IsOpen {
+		GlobalIcons.DrawIcon(IconClose, menuBtnRec.X+10, menuBtnRec.Y+8, 18, rl.NewColor(255, 100, 100, 255))
+		ui.DrawText("FECHAR", int32(menuBtnRec.X)+32, int32(menuBtnRec.Y)+8, 14, rl.RayWhite)
+	} else {
+		GlobalIcons.DrawIcon(IconConfig, menuBtnRec.X+10, menuBtnRec.Y+8, 18, rl.SkyBlue)
+		ui.DrawText("CONFIG", int32(menuBtnRec.X)+32, int32(menuBtnRec.Y)+8, 14, rl.RayWhite)
+	}
 
 	// Floating Editor Toggle Button
 	editorBtnRec := rl.NewRectangle(130, 12, 110, 34)
@@ -197,7 +199,8 @@ func (ui *UIState) Draw(
 	}
 	rl.DrawRectangleRounded(editorBtnRec, 0.3, 4, editorBgColor)
 	rl.DrawRectangleRoundedLines(editorBtnRec, 0.3, 4, rl.NewColor(80, 140, 220, 255))
-	ui.DrawText("✏ EDITOR", int32(editorBtnRec.X)+14, int32(editorBtnRec.Y)+8, 15, rl.RayWhite)
+	GlobalIcons.DrawIcon(IconFileText, editorBtnRec.X+10, editorBtnRec.Y+8, 18, rl.SkyBlue)
+	ui.DrawText("EDITOR", int32(editorBtnRec.X)+32, int32(editorBtnRec.Y)+8, 14, rl.RayWhite)
 
 	// Floating Update Button (Shown when new release/hotfix is available)
 	upState := updater.GetUpdateState()
@@ -206,11 +209,11 @@ func (ui *UIState) Draw(
 		if upState.Latest != nil {
 			tag = upState.Latest.TagName
 		}
-		btnLabel := fmt.Sprintf("🚀 ATUALIZAR (%s)", tag)
+		btnLabel := fmt.Sprintf("ATUALIZAR (%s)", tag)
 		if upState.IsUpdating {
-			btnLabel = fmt.Sprintf("⬇ Baixando... %d%%", int(upState.Progress*100))
+			btnLabel = fmt.Sprintf("Baixando... %d%%", int(upState.Progress*100))
 		} else if upState.Success {
-			btnLabel = "✓ Atualizado! Reinicie"
+			btnLabel = "Reiniciar App"
 		}
 
 		upBtnRec := rl.NewRectangle(248, 12, 185, 34)
@@ -235,7 +238,8 @@ func (ui *UIState) Draw(
 		}
 		rl.DrawRectangleRounded(upBtnRec, 0.3, 4, upBgColor)
 		rl.DrawRectangleRoundedLines(upBtnRec, 0.3, 4, rl.Lime)
-		ui.DrawText(btnLabel, int32(upBtnRec.X)+10, int32(upBtnRec.Y)+8, 13, rl.RayWhite)
+		GlobalIcons.DrawIcon(IconDownload, upBtnRec.X+10, upBtnRec.Y+8, 18, rl.Lime)
+		ui.DrawText(btnLabel, int32(upBtnRec.X)+32, int32(upBtnRec.Y)+8, 13, rl.RayWhite)
 	}
 
 	if ui.IsOpen {
@@ -255,13 +259,14 @@ func (ui *UIState) Draw(
 		tabs := []struct {
 			id   Tab
 			name string
+			icon int
 		}{
-			{TabAvatars, "Avatar"},
-			{TabAudio, "Áudio"},
-			{TabCostumes, "Roupas"},
-			{TabPhysics, "Física"},
-			{TabKeybinds, "Teclas"},
-			{TabOBS, "OBS"},
+			{TabAvatars, "Avatar", IconAvatar},
+			{TabAudio, "Áudio", IconMic},
+			{TabCostumes, "Roupas", IconGrid},
+			{TabPhysics, "Física", IconPhysics},
+			{TabKeybinds, "Teclas", IconGamepad},
+			{TabOBS, "OBS", IconSelection},
 		}
 
 		tabW := float32(panelW-20) / float32(len(tabs))
@@ -284,7 +289,8 @@ func (ui *UIState) Draw(
 			}
 
 			rl.DrawRectangleRounded(tabRec, 0.2, 4, tabBg)
-			ui.DrawText(t.name, int32(tabRec.X)+8, int32(tabRec.Y)+7, 13, tabTextColor)
+			GlobalIcons.DrawIcon(t.icon, tabRec.X+4, tabRec.Y+7, 16, tabTextColor)
+			ui.DrawText(t.name, int32(tabRec.X)+22, int32(tabRec.Y)+7, 12, tabTextColor)
 		}
 
 		// Content area starting Y
@@ -356,7 +362,8 @@ func (ui *UIState) drawAvatarsTab(panelRec rl.Rectangle, startY int32, cfg *conf
 	} else {
 		rl.DrawRectangleRounded(editRec, 0.2, 4, rl.NewColor(32, 55, 95, 255))
 	}
-	ui.DrawText("✏ Abrir no Editor Visual", int32(editRec.X)+60, int32(editRec.Y)+8, 14, rl.RayWhite)
+	GlobalIcons.DrawIcon(IconFileText, editRec.X+40, editRec.Y+8, 18, rl.SkyBlue)
+	ui.DrawText("Abrir no Editor Visual", int32(editRec.X)+64, int32(editRec.Y)+8, 14, rl.RayWhite)
 
 	y += 44
 
@@ -370,7 +377,8 @@ func (ui *UIState) drawAvatarsTab(panelRec rl.Rectangle, startY int32, cfg *conf
 	} else {
 		rl.DrawRectangleRounded(scanRec, 0.2, 4, rl.NewColor(38, 45, 65, 255))
 	}
-	ui.DrawText("▶ Atualizar Lista de Avatares", int32(scanRec.X)+50, int32(scanRec.Y)+8, 14, rl.RayWhite)
+	GlobalIcons.DrawIcon(IconReset, scanRec.X+40, scanRec.Y+8, 18, rl.RayWhite)
+	ui.DrawText("Atualizar Lista de Avatares", int32(scanRec.X)+64, int32(scanRec.Y)+8, 14, rl.RayWhite)
 }
 
 func (ui *UIState) drawAudioTab(panelRec rl.Rectangle, startY int32, cfg *config.Config, audioEngine *audio.CaptureEngine, mousePos rl.Vector2) {
@@ -745,11 +753,12 @@ func (ui *UIState) drawOBSTab(panelRec rl.Rectangle, startY int32, cfg *config.C
 		}
 		rl.DrawRectangleRounded(upBtn, 0.2, 4, btnCol)
 		rl.DrawRectangleRoundedLines(upBtn, 0.2, 4, rl.Lime)
-		btnText := fmt.Sprintf("🚀 Atualizar para %s (Ver Detalhes)", upState.Latest.TagName)
+		btnText := fmt.Sprintf("Atualizar para %s (Ver Detalhes)", upState.Latest.TagName)
 		if upState.IsUpdating {
-			btnText = fmt.Sprintf("⬇ Baixando... %d%%", int(upState.Progress*100))
+			btnText = fmt.Sprintf("Baixando... %d%%", int(upState.Progress*100))
 		}
-		ui.DrawText(btnText, int32(upBtn.X)+28, int32(upBtn.Y)+8, 13, rl.RayWhite)
+		GlobalIcons.DrawIcon(IconDownload, upBtn.X+24, upBtn.Y+8, 16, rl.Lime)
+		ui.DrawText(btnText, int32(upBtn.X)+48, int32(upBtn.Y)+8, 13, rl.RayWhite)
 	} else {
 		upRec := rl.NewRectangle(panelRec.X+16, float32(y), panelRec.Width-32, 30)
 		hoveredUp := rl.CheckCollisionPointRec(mousePos, upRec)
@@ -761,7 +770,8 @@ func (ui *UIState) drawOBSTab(panelRec rl.Rectangle, startY int32, cfg *config.C
 			}
 		}
 		rl.DrawRectangleRounded(upRec, 0.2, 4, upCol)
-		ui.DrawText(fmt.Sprintf("PNGTuber Lite %s | [ 🔍 Verificar Updates ]", updater.CurrentVersion), int32(upRec.X)+12, int32(upRec.Y)+7, 12, rl.SkyBlue)
+		GlobalIcons.DrawIcon(IconSearch, upRec.X+20, upRec.Y+7, 15, rl.SkyBlue)
+		ui.DrawText(fmt.Sprintf("PNGTuber Lite %s | Verificar Updates", updater.CurrentVersion), int32(upRec.X)+44, int32(upRec.Y)+7, 12, rl.SkyBlue)
 	}
 }
 
@@ -788,14 +798,14 @@ func (ui *UIState) drawKeybindsTab(panelRec rl.Rectangle, startY int32, cfg *con
 					cfg.Keybinds.ToggleBorderless = key
 				case "toggleAlwaysOnTop":
 					cfg.Keybinds.ToggleAlwaysOnTop = key
-				case "testBounce":
-					cfg.Keybinds.TestBounce = key
-				case "resetAvatar":
-					cfg.Keybinds.ResetAvatar = key
 				case "increaseSens":
 					cfg.Keybinds.IncreaseSens = key
 				case "decreaseSens":
 					cfg.Keybinds.DecreaseSens = key
+				case "testBounce":
+					cfg.Keybinds.TestBounce = key
+				case "resetAvatar":
+					cfg.Keybinds.ResetAvatar = key
 				}
 				ui.RebindingAction = ""
 			}
@@ -803,31 +813,29 @@ func (ui *UIState) drawKeybindsTab(panelRec rl.Rectangle, startY int32, cfg *con
 	}
 
 	items := []struct {
-		actionID string
 		label    string
+		actionID string
 		current  int32
 	}{
-		{"toggleMenu", "Menu / Configurações", cfg.Keybinds.ToggleMenu},
-		{"toggleEditor", "Editor Visual de Avatar", cfg.Keybinds.ToggleEditor},
-		{"toggleHUD", "Painel de Depuração (HUD)", cfg.Keybinds.ToggleHUD},
-		{"testBounce", "Pulo / Teste de Fala", cfg.Keybinds.TestBounce},
-		{"resetAvatar", "Resetar Posição / Escala", cfg.Keybinds.ResetAvatar},
-		{"toggleClickThrough", "Modo Click-Through", cfg.Keybinds.ToggleClickThrough},
-		{"toggleBorderless", "Janela Sem Bordas (Overlay)", cfg.Keybinds.ToggleBorderless},
-		{"toggleAlwaysOnTop", "Sempre no Topo (Always on Top)", cfg.Keybinds.ToggleAlwaysOnTop},
-		{"increaseSens", "Aumentar Sensibilidade Mic", cfg.Keybinds.IncreaseSens},
-		{"decreaseSens", "Diminuir Sensibilidade Mic", cfg.Keybinds.DecreaseSens},
+		{"Menu / Configurações:", "toggleMenu", cfg.Keybinds.ToggleMenu},
+		{"Editor Visual de Avatar:", "toggleEditor", cfg.Keybinds.ToggleEditor},
+		{"Painel de Depuração (HUD):", "toggleHUD", cfg.Keybinds.ToggleHUD},
+		{"Modo Click-Through:", "toggleClickThrough", cfg.Keybinds.ToggleClickThrough},
+		{"Janela Sem Bordas (OBS):", "toggleBorderless", cfg.Keybinds.ToggleBorderless},
+		{"Sempre no Topo (Topmost):", "toggleAlwaysOnTop", cfg.Keybinds.ToggleAlwaysOnTop},
+		{"Aumentar Sensibilidade:", "increaseSens", cfg.Keybinds.IncreaseSens},
+		{"Diminuir Sensibilidade:", "decreaseSens", cfg.Keybinds.DecreaseSens},
+		{"Pulo / Teste de Fala:", "testBounce", cfg.Keybinds.TestBounce},
+		{"Resetar Posição e Escala:", "resetAvatar", cfg.Keybinds.ResetAvatar},
 	}
 
-	y := startY + 26
+	y := startY + 28
 	for _, it := range items {
 		// Action description label
-		ui.DrawText(it.label, int32(panelRec.X)+16, y+4, 12, rl.LightGray)
+		ui.DrawText(it.label, int32(panelRec.X)+16, y+4, 13, rl.LightGray)
 
 		// Key button on the right
-		btnW := float32(115)
-		btnH := float32(23)
-		btnRec := rl.NewRectangle(panelRec.X+panelRec.Width-btnW-16, float32(y), btnW, btnH)
+		btnRec := rl.NewRectangle(panelRec.X+panelRec.Width-150, float32(y), 134, 24)
 		hovered := rl.CheckCollisionPointRec(mousePos, btnRec)
 		isListening := (ui.RebindingAction == it.actionID)
 
@@ -871,7 +879,8 @@ func (ui *UIState) drawKeybindsTab(panelRec rl.Rectangle, startY int32, cfg *con
 		}
 	}
 	rl.DrawRectangleRounded(resetBtnRec, 0.2, 4, resetBg)
-	ui.DrawText("↺ Restaurar Teclas Padrão", int32(resetBtnRec.X)+int32(resetBtnRec.Width/2)-75, int32(resetBtnRec.Y)+6, 12, rl.RayWhite)
+	GlobalIcons.DrawIcon(IconReset, resetBtnRec.X+30, resetBtnRec.Y+6, 16, rl.RayWhite)
+	ui.DrawText("Restaurar Teclas Padrão", int32(resetBtnRec.X)+54, int32(resetBtnRec.Y)+6, 12, rl.RayWhite)
 }
 
 func (ui *UIState) drawUpdateModal(mousePos rl.Vector2, screenW, screenH float32) {
@@ -904,11 +913,12 @@ func (ui *UIState) drawUpdateModal(mousePos rl.Vector2, screenW, screenH float32
 
 	// Title
 	tag := upState.Latest.TagName
-	titleText := fmt.Sprintf("🚀 Nova Atualização Disponível! (%s)", tag)
+	titleText := fmt.Sprintf("Nova Atualização Disponível! (%s)", tag)
 	if upState.Latest.IsHotfix {
-		titleText = fmt.Sprintf("⚡ Hotfix Importante Disponível! (%s)", tag)
+		titleText = fmt.Sprintf("Hotfix Importante Disponível! (%s)", tag)
 	}
-	ui.DrawText(titleText, int32(modalX)+20, curY, 16, rl.RayWhite)
+	GlobalIcons.DrawIcon(IconDownload, modalX+20, float32(curY), 20, rl.Lime)
+	ui.DrawText(titleText, int32(modalX)+46, curY, 16, rl.RayWhite)
 	curY += 24
 
 	ui.DrawText(fmt.Sprintf("Versão Atual: %s  ➜  Nova Versão: %s", updater.CurrentVersion, tag), int32(modalX)+20, curY, 13, rl.Lime)
@@ -941,7 +951,7 @@ func (ui *UIState) drawUpdateModal(mousePos rl.Vector2, screenW, screenH float32
 		}
 		rl.DrawRectangleRounded(rl.NewRectangle(barRec.X, barRec.Y, fillW, barRec.Height), 0.3, 4, rl.Lime)
 
-		ui.DrawText(fmt.Sprintf("⬇ Baixando e instalando atualização... %d%%", int(upState.Progress*100)), int32(modalX)+20, curY+4, 12, rl.RayWhite)
+		ui.DrawText(fmt.Sprintf("Baixando e instalando atualização... %d%%", int(upState.Progress*100)), int32(modalX)+20, curY+4, 12, rl.RayWhite)
 		return
 	}
 
@@ -960,7 +970,8 @@ func (ui *UIState) drawUpdateModal(mousePos rl.Vector2, screenW, screenH float32
 		} else {
 			rl.DrawRectangleRounded(closeRec, 0.2, 4, rl.NewColor(35, 55, 90, 255))
 		}
-		ui.DrawText("✕ Fechar", int32(closeRec.X)+28, int32(closeRec.Y)+9, 13, rl.RayWhite)
+		GlobalIcons.DrawIcon(IconClose, closeRec.X+16, closeRec.Y+8, 16, rl.RayWhite)
+		ui.DrawText("Fechar", int32(closeRec.X)+38, int32(closeRec.Y)+9, 13, rl.RayWhite)
 		return
 	}
 
@@ -995,7 +1006,8 @@ func (ui *UIState) drawUpdateModal(mousePos rl.Vector2, screenW, screenH float32
 	}
 	rl.DrawRectangleRounded(nowRec, 0.2, 4, nowCol)
 	rl.DrawRectangleRoundedLines(nowRec, 0.2, 4, rl.Lime)
-	ui.DrawText("🚀 Atualizar Agora", int32(nowRec.X)+26, int32(nowRec.Y)+9, 14, rl.RayWhite)
+	GlobalIcons.DrawIcon(IconDownload, nowRec.X+16, nowRec.Y+9, 18, rl.White)
+	ui.DrawText("Atualizar Agora", int32(nowRec.X)+40, int32(nowRec.Y)+9, 14, rl.RayWhite)
 
 	// Button 2: Lembrar Mais Tarde
 	laterRec := rl.NewRectangle(modalX+28+btnW, float32(curY), btnW, btnH)
@@ -1010,5 +1022,6 @@ func (ui *UIState) drawUpdateModal(mousePos rl.Vector2, screenW, screenH float32
 	}
 	rl.DrawRectangleRounded(laterRec, 0.2, 4, laterCol)
 	rl.DrawRectangleRoundedLines(laterRec, 0.2, 4, rl.Gray)
-	ui.DrawText("⏰ Lembrar Depois", int32(laterRec.X)+24, int32(laterRec.Y)+9, 14, rl.RayWhite)
+	GlobalIcons.DrawIcon(IconClock, laterRec.X+16, laterRec.Y+9, 18, rl.White)
+	ui.DrawText("Lembrar Depois", int32(laterRec.X)+40, int32(laterRec.Y)+9, 14, rl.RayWhite)
 }

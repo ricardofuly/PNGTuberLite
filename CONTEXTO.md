@@ -169,6 +169,11 @@ Uma camada só é desenhada se todas as 3 condições forem verdadeiras:
   - `release.yml`: Compilação nativa para Linux e Windows com injeção automática de versão e publicação de release com checksums SHA256.
   - `hotfix.yml`: Disparador automatizado de tags para publicação instantânea de patches emergenciais.
 
+### 4.9 Sistema de Ícones em Sprite Atlas e Logo Oficial
+- **Atlas de Ícones (`IconsFlat-32.png` / `IconsFlat-32.json`)**: Gerenciador `IconManager` em `pkg/ui/icons.go` carrega o atlas de spritesheets de 32x32px e mapeia coordenadas exatas de 100 ícones.
+- **Eliminação de Emojis Unicode**: Todos os botões da toolbar (`Config`, `Editor`, `Update`), abas do menu (`Avatar`, `Áudio`, `Roupas`, `Física`, `Teclas`, `OBS`), botões de ação do editor (`+ PNG`, `+ Novo`, `Salvar`, `Duplicar`, `Excluir`) e modais foram substituídos por ícones nativos renderizados via GPU (`rl.DrawTexturePro`) com cores dinâmicas e suporte a Point Filtering para nitidez de pixel art.
+- **Logo Oficial (`assets/icons/logo.png`)**: O ícone do Gopher Gamer é automaticamente aplicado como ícone da janela do sistema operacional (`rl.SetWindowIcon`) e nos banners de interface.
+
 ---
 
 ## 5. Status dos Testes Automatizados

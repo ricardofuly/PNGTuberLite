@@ -115,6 +115,12 @@ func main() {
 	wm.InitWindow()
 	defer wm.CloseWindow()
 
+	// Load Icon Atlas and Official Logo
+	if err := ui.GlobalIcons.Load(); err != nil {
+		log.Printf("Warning: Could not load icons: %v", err)
+	}
+	defer ui.GlobalIcons.Unload()
+
 	// 4. Initialize GPU Texture Cache and Renderer
 	texCache := render.NewTextureCache()
 	if err := texCache.LoadAvatarTextures(avatar); err != nil {
@@ -558,7 +564,8 @@ func drawDebugHUD(
 	y := int32(60)
 
 	// 1. Title Header
-	uiState.DrawText("⚡ PNGTuber Lite - Profiler & HUD", 24, y, 15, rl.RayWhite)
+	ui.GlobalIcons.DrawIcon(ui.IconPhysics, 24, float32(y), 18, rl.SkyBlue)
+	uiState.DrawText("PNGTuber Lite - Profiler & HUD", 48, y, 15, rl.RayWhite)
 	y += 24
 
 	// 2. CPU Usage

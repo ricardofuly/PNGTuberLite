@@ -267,7 +267,8 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 	rl.DrawRectangleRec(headerRec, rl.NewColor(15, 18, 28, 250))
 	rl.DrawLine(0, 44, screenW, 44, rl.NewColor(45, 60, 95, 255))
 
-	e.UI.DrawText("✏️ EDITOR DE AVATAR (PNGTuber Lite)", 16, 12, 16, rl.SkyBlue)
+	ui.GlobalIcons.DrawIcon(ui.IconFileText, 16, 12, 18, rl.SkyBlue)
+	e.UI.DrawText("EDITOR DE AVATAR (PNGTuber Lite)", 40, 12, 16, rl.SkyBlue)
 
 	// Save Button
 	saveBtnRec := rl.NewRectangle(float32(screenW)-250, 7, 110, 30)
@@ -280,7 +281,8 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 		}
 	}
 	rl.DrawRectangleRounded(saveBtnRec, 0.25, 4, saveBg)
-	e.UI.DrawText("💾 SALVAR", int32(saveBtnRec.X)+14, int32(saveBtnRec.Y)+7, 14, rl.RayWhite)
+	ui.GlobalIcons.DrawIcon(ui.IconSave, saveBtnRec.X+12, saveBtnRec.Y+6, 16, rl.Lime)
+	e.UI.DrawText("SALVAR", int32(saveBtnRec.X)+34, int32(saveBtnRec.Y)+7, 14, rl.RayWhite)
 
 	// Close Editor Button
 	closeBtnRec := rl.NewRectangle(float32(screenW)-125, 7, 110, 30)
@@ -293,7 +295,8 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 		}
 	}
 	rl.DrawRectangleRounded(closeBtnRec, 0.25, 4, closeBg)
-	e.UI.DrawText("✕ FECHAR", int32(closeBtnRec.X)+18, int32(closeBtnRec.Y)+7, 14, rl.RayWhite)
+	ui.GlobalIcons.DrawIcon(ui.IconClose, closeBtnRec.X+12, closeBtnRec.Y+6, 16, rl.NewColor(255, 120, 120, 255))
+	e.UI.DrawText("FECHAR", int32(closeBtnRec.X)+34, int32(closeBtnRec.Y)+7, 14, rl.RayWhite)
 
 	// Status Notification Banner
 	if e.StatusMessage != "" {
@@ -322,7 +325,8 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 	} else {
 		rl.DrawRectangleRounded(addPNGBtn, 0.2, 4, rl.NewColor(28, 55, 95, 255))
 	}
-	e.UI.DrawText("+ PNG", int32(addPNGBtn.X)+28, int32(addPNGBtn.Y)+6, 13, rl.RayWhite)
+	ui.GlobalIcons.DrawIcon(ui.IconFileImage, addPNGBtn.X+14, addPNGBtn.Y+6, 16, rl.SkyBlue)
+	e.UI.DrawText("PNG", int32(addPNGBtn.X)+36, int32(addPNGBtn.Y)+6, 13, rl.RayWhite)
 
 	newAvBtn := rl.NewRectangle(leftRec.X+12+btnW+12, leftRec.Y+36, btnW, 28)
 	if rl.CheckCollisionPointRec(mousePos, newAvBtn) {
@@ -333,7 +337,8 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 	} else {
 		rl.DrawRectangleRounded(newAvBtn, 0.2, 4, rl.NewColor(32, 42, 65, 255))
 	}
-	e.UI.DrawText("+ Novo", int32(newAvBtn.X)+25, int32(newAvBtn.Y)+6, 13, rl.RayWhite)
+	ui.GlobalIcons.DrawIcon(ui.IconPlus, newAvBtn.X+14, newAvBtn.Y+6, 16, rl.Lime)
+	e.UI.DrawText("Novo", int32(newAvBtn.X)+36, int32(newAvBtn.Y)+6, 13, rl.RayWhite)
 
 	// Layers List Scroll / Stack
 	layerY := int32(leftRec.Y) + 74
@@ -387,7 +392,8 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 	} else {
 		rl.DrawRectangleRounded(dupBtn, 0.2, 4, rl.NewColor(30, 42, 62, 255))
 	}
-	e.UI.DrawText("Duplicar", int32(dupBtn.X)+20, int32(dupBtn.Y)+8, 13, rl.RayWhite)
+	ui.GlobalIcons.DrawIcon(ui.IconDuplicate, dupBtn.X+10, dupBtn.Y+8, 16, rl.SkyBlue)
+	e.UI.DrawText("Duplicar", int32(dupBtn.X)+30, int32(dupBtn.Y)+8, 13, rl.RayWhite)
 
 	delBtn := rl.NewRectangle(leftRec.X+12+btnW+12, leftRec.Y+leftRec.Height-44, btnW, 32)
 	if rl.CheckCollisionPointRec(mousePos, delBtn) {
@@ -398,7 +404,8 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 	} else {
 		rl.DrawRectangleRounded(delBtn, 0.2, 4, rl.NewColor(80, 25, 35, 255))
 	}
-	e.UI.DrawText("Excluir", int32(delBtn.X)+26, int32(delBtn.Y)+8, 13, rl.RayWhite)
+	ui.GlobalIcons.DrawIcon(ui.IconClose, delBtn.X+12, delBtn.Y+8, 16, rl.NewColor(255, 120, 120, 255))
+	e.UI.DrawText("Excluir", int32(delBtn.X)+32, int32(delBtn.Y)+8, 13, rl.RayWhite)
 
 	// 3. Right Sidebar: Layer Properties & Settings
 	rightW := float32(360)
