@@ -23,7 +23,7 @@ func DefaultKeybinds() Keybinds {
 	return Keybinds{
 		ToggleMenu:         258, // KeyTab
 		ToggleEditor:       69,  // KeyE
-		ToggleHUD:          72,  // KeyH
+		ToggleHUD:          292, // KeyF3
 		ToggleClickThrough: 298, // KeyF9
 		ToggleBorderless:   299, // KeyF10
 		ToggleAlwaysOnTop:  300, // KeyF11

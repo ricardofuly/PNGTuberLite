@@ -12,7 +12,8 @@ scratch/
 test_out.save
 out_test.save
 
-# OS specific files
+# References and design scratch
+assets/refs/
 .DS_Store
 Thumbs.db
 

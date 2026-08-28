@@ -466,8 +466,8 @@ func main() {
 				animator.Bounce.Trigger()
 			}
 
-			// Toggle Debug HUD
-			if rl.IsKeyPressed(cfg.Keybinds.ToggleHUD) || rl.IsKeyPressed(rl.KeyF1) {
+			// Toggle Debug HUD (F3, H, or Configured Key)
+			if rl.IsKeyPressed(cfg.Keybinds.ToggleHUD) || rl.IsKeyPressed(rl.KeyF3) || rl.IsKeyPressed(rl.KeyH) {
 				showHUD = !showHUD
 			}
 
@@ -641,6 +641,90 @@ func main() {
 	_ = config.SaveConfig(*configFlag, cfg)
 }
 
+// drawHUDProgressBar renders a rounded progress bar with background track and dynamic fill.
+func drawHUDProgressBar(rec rl.Rectangle, val float32, maxVal float32, fillColor, trackColor rl.Color) {
+	rl.DrawRectangleRounded(rec, 0.5, 4, trackColor)
+	if maxVal <= 0 {
+		return
+	}
+	fillW := (val / maxVal) * rec.Width
+	if fillW > rec.Width {
+		fillW = rec.Width
+	}
+	if fillW > 2 {
+		rl.DrawRectangleRounded(rl.NewRectangle(rec.X, rec.Y, fillW, rec.Height), 0.5, 4, fillColor)
+	}
+}
+
+// drawHUDSparkline renders a real-time smoothly scrolling sparkline graph with area fill and reference guide line.
+func drawHUDSparkline(rec rl.Rectangle, history []float32, minVal, maxVal float32, lineColor, fillColor rl.Color, targetLine float32, scrollProgress float32) {
+	rl.DrawRectangleRounded(rec, 0.2, 4, rl.NewColor(14, 20, 32, 220))
+	rl.DrawRectangleRoundedLines(rec, 0.2, 4, rl.NewColor(36, 52, 82, 255))
+
+	if len(history) < 2 || maxVal <= minVal {
+		return
+	}
+
+	// Target reference line (e.g. 16.6ms for 60fps)
+	if targetLine > minVal && targetLine < maxVal {
+		normTarget := (targetLine - minVal) / (maxVal - minVal)
+		targetY := rec.Y + rec.Height - 3 - (normTarget * (rec.Height - 6))
+		rl.DrawLineEx(rl.NewVector2(rec.X+3, targetY), rl.NewVector2(rec.X+rec.Width-3, targetY), 1.0, rl.NewColor(70, 105, 155, 140))
+	}
+
+	stepX := (rec.Width - 6) / float32(profiler.MaxHistoryPoints-1)
+	subpixelOffset := (1.0 - scrollProgress) * stepX
+	if subpixelOffset < 0 {
+		subpixelOffset = 0
+	}
+	startX := rec.X + 3 + float32(profiler.MaxHistoryPoints-len(history))*stepX - subpixelOffset
+
+	pts := make([]rl.Vector2, 0, len(history))
+	for i, v := range history {
+		norm := (v - minVal) / (maxVal - minVal)
+		if norm < 0 {
+			norm = 0
+		}
+		if norm > 1 {
+			norm = 1
+		}
+		py := rec.Y + rec.Height - 3 - (norm * (rec.Height - 6))
+		px := startX + float32(i)*stepX
+		if px >= rec.X+2 && px <= rec.X+rec.Width+stepX {
+			if px < rec.X+3 {
+				px = rec.X + 3
+			}
+			if px > rec.X+rec.Width-3 {
+				px = rec.X + rec.Width - 3
+			}
+			pts = append(pts, rl.NewVector2(px, py))
+		}
+	}
+
+	if len(pts) < 2 {
+		return
+	}
+
+	// Draw filled polygon underneath line
+	bottomY := rec.Y + rec.Height - 3
+	for i := 0; i < len(pts)-1; i++ {
+		p1 := pts[i]
+		p2 := pts[i+1]
+		b1 := rl.NewVector2(p1.X, bottomY)
+		b2 := rl.NewVector2(p2.X, bottomY)
+
+		rl.DrawTriangle(p1, b1, b2, fillColor)
+		rl.DrawTriangle(p1, b2, p2, fillColor)
+		rl.DrawLineEx(p1, p2, 1.8, lineColor)
+	}
+
+	// Glowing indicator dot at the latest value
+	lastPt := pts[len(pts)-1]
+	glowCol := rl.NewColor(lineColor.R, lineColor.G, lineColor.B, 70)
+	rl.DrawCircleV(lastPt, 4.0, glowCol)
+	rl.DrawCircleV(lastPt, 2.5, lineColor)
+}
+
 func drawDebugHUD(
 	uiState *ui.UIState,
 	wm *window.WindowManager,
@@ -653,99 +737,137 @@ func drawDebugHUD(
 	avatarX, avatarY float32,
 	micDevice string,
 ) {
-	panelW := int32(370)
-	panelH := int32(335)
-	rl.DrawRectangleRounded(rl.NewRectangle(12, 52, float32(panelW), float32(panelH)), 0.05, 4, rl.NewColor(12, 16, 24, 230))
-	rl.DrawRectangleRoundedLines(rl.NewRectangle(12, 52, float32(panelW), float32(panelH)), 0.05, 4, rl.NewColor(55, 80, 125, 255))
+	panelW := float32(420)
+	panelH := float32(495)
+	panelRec := rl.NewRectangle(12, 52, panelW, panelH)
 
-	y := int32(60)
+	rl.DrawRectangleRounded(panelRec, 0.04, 6, rl.NewColor(12, 18, 30, 245))
+	rl.DrawRectangleRoundedLines(panelRec, 0.04, 6, ui.ColPanelBorder)
 
-	// 1. Title Header
-	ui.GlobalIcons.DrawIcon(ui.IconPhysics, 24, float32(y), 18, rl.SkyBlue)
-	uiState.DrawText("PNGTuber Lite - Profiler & HUD", 48, y, 15, rl.RayWhite)
-	y += 24
+	y := float32(62)
+	contentW := panelW - 28
+	contentX := float32(26)
 
-	// 2. CPU Usage
-	cpuColor := rl.Lime
+	// 1. Title Header (No overlapping!)
+	ui.GlobalIcons.DrawIcon(ui.IconPhysics, contentX, y, 18, ui.ColSkyBlue)
+	uiState.DrawTextBold("Telemetria & Profiler", int32(contentX)+24, int32(y)+1, 14, ui.ColTextTitle)
+	uiState.DrawBadge(panelRec.X+panelW-85, y-1, "F3 [HUD]", ui.ColCardBg, ui.ColSkyBlue)
+	y += 26
+
+	// 2. CPU Usage & History Graph
+	cpuColor := ui.ColLime
 	if stats.CPUPercent > 40.0 {
-		cpuColor = rl.Orange
-	} else if stats.CPUPercent > 70.0 {
-		cpuColor = rl.Red
+		cpuColor = ui.ColYellow
 	}
-	uiState.DrawText(fmt.Sprintf("CPU Processo: %.1f%% (%d Goroutines)", stats.CPUPercent, stats.NumGoroutine), 24, y, 13, cpuColor)
-	y += 20
+	if stats.CPUPercent > 70.0 {
+		cpuColor = ui.ColRed
+	}
+
+	uiState.DrawTextBold(fmt.Sprintf("CPU Processo: %.1f%% (Total: %.1f%%)", stats.CPUPercent, stats.CPUTotalPercent), int32(contentX), int32(y), 12.5, cpuColor)
+	uiState.DrawText(fmt.Sprintf("%d Goroutines", stats.NumGoroutine), int32(contentX+contentW)-90, int32(y)+1, 11, ui.ColTextMuted)
+	y += 18
+
+	// CPU Progress Bar (Smooth)
+	drawHUDProgressBar(rl.NewRectangle(contentX, y, contentW, 6), stats.SmoothCPU, 100.0, cpuColor, ui.ColScrollTrack)
+	y += 10
+
+	// CPU Sparkline Graph (Continuous sub-pixel scroll)
+	cpuFill := rl.NewColor(cpuColor.R, cpuColor.G, cpuColor.B, 40)
+	drawHUDSparkline(rl.NewRectangle(contentX, y, contentW, 30), stats.CPUHistory, 0, 50.0, cpuColor, cpuFill, 0, stats.SampleProgress)
+	y += 36
 
 	// 3. RAM (Physical RSS & Go Heap)
-	uiState.DrawText(fmt.Sprintf("RAM Física (RSS): %.1f MB", stats.RamRSSMB), 24, y, 13, rl.SkyBlue)
-	uiState.DrawText(fmt.Sprintf("Go Heap: %.1f MB (Sys: %.1f MB | GC: %d)", stats.RamAllocMB, stats.RamSysMB, stats.NumGC), 24, y+16, 12, rl.LightGray)
+	uiState.DrawTextBold(fmt.Sprintf("RAM Física (RSS): %.1f MB", stats.RamRSSMB), int32(contentX), int32(y), 12.5, ui.ColSkyBlue)
+	uiState.DrawText(fmt.Sprintf("Heap: %.1f MB (Sys: %.1f MB | GC: %d)", stats.RamAllocMB, stats.RamSysMB, stats.NumGC), int32(contentX), int32(y)+16, 11, ui.ColTextMuted)
+	y += 32
+
+	// RAM Progress Bar (0 to 512 MB scale, Smooth)
+	drawHUDProgressBar(rl.NewRectangle(contentX, y, contentW, 6), stats.SmoothRAM, 512.0, ui.ColSkyBlue, ui.ColScrollTrack)
+	y += 14
+
+	// 4. GPU & Frametime Graph
+	frameColor := ui.ColLime
+	if stats.FrameTimeMS > 18.0 {
+		frameColor = ui.ColYellow
+	}
+	if stats.FrameTimeMS > 33.0 {
+		frameColor = ui.ColRed
+	}
+
+	uiState.DrawTextBold(fmt.Sprintf("Frame: %.1f ms | FPS: %d", stats.FrameTimeMS, stats.FPS), int32(contentX), int32(y), 12.5, frameColor)
+	uiState.DrawText(fmt.Sprintf("VRAM: %.1f MB (%d tex)", stats.VRAMMB, stats.TextureCount), int32(contentX+contentW)-135, int32(y)+1, 11, ui.ColTextBody)
+	y += 18
+
+	// Frametime Sparkline Graph (target line at 16.6ms for 60fps)
+	frameFill := rl.NewColor(frameColor.R, frameColor.G, frameColor.B, 40)
+	drawHUDSparkline(rl.NewRectangle(contentX, y, contentW, 30), stats.FrametimeHistory, 0, 33.3, frameColor, frameFill, 16.6, 1.0)
 	y += 36
 
-	// 4. GPU & Render Time
-	uiState.DrawText(fmt.Sprintf("GPU VRAM: %.1f MB (%d texturas carregadas)", stats.VRAMMB, stats.TextureCount), 24, y, 13, rl.Lime)
-	uiState.DrawText(fmt.Sprintf("Frame: %.1f ms | FPS: %d (Meta: 60)", stats.FrameTimeMS, stats.FPS), 24, y+16, 12, rl.Yellow)
-	y += 36
-
-	// 5. Avatar Status
-	uiState.DrawText(fmt.Sprintf("Figurino: %d/10 | Zoom: %.2fx | Pos: (%.0f, %.0f)", costume, scale, avatarX, avatarY), 24, y, 12, rl.LightGray)
-	y += 20
-
-	// 6. Window Overlay Status
-	borderlessStr := "OFF [F10]"
-	if wm.IsBorderless() {
-		borderlessStr = "ON [F10]"
-	}
-	topmostStr := "OFF [F11]"
-	if wm.IsAlwaysOnTop() {
-		topmostStr = "ON [F11]"
-	}
-	passthroughStr := "OFF [F9]"
-	if wm.IsClickThrough() {
-		passthroughStr = "ON [F9]"
-	}
-	uiState.DrawText(fmt.Sprintf("Borderless: %s | Top: %s | Click-Thru: %s", borderlessStr, topmostStr, passthroughStr), 24, y, 12, rl.SkyBlue)
-	y += 24
-
-	// 7. Audio & VAD
+	// 5. Audio & VAD
 	micName := micDevice
 	if micName == "" {
 		micName = "Padrão do Sistema"
 	}
-	if len(micName) > 28 {
-		micName = micName[:28] + "..."
+	if len(micName) > 24 {
+		micName = micName[:24] + "..."
 	}
-	uiState.DrawText(fmt.Sprintf("Mic: %s", micName), 24, y, 12, rl.Yellow)
-	uiState.DrawText(fmt.Sprintf("RMS: %.3f | Limiar: %.3f (+/-)", volume, threshold), 24, y+16, 12, rl.LightGray)
-	y += 34
 
-	// Audio Level Bar
-	barWidth := float32(340.0)
-	rl.DrawRectangle(24, y, int32(barWidth), 10, rl.DarkGray)
+	uiState.DrawTextBold(fmt.Sprintf("Mic: %s", micName), int32(contentX), int32(y), 12.5, ui.ColYellow)
 
-	volFill := (volume / 0.2) * barWidth
-	if volFill > barWidth {
-		volFill = barWidth
-	}
-	volColor := rl.Lime
+	vadText := "🤫 Silêncio"
+	vadCol := ui.ColTextMuted
+	vadBg := ui.ColCardBg
 	if isSpeaking {
-		volColor = rl.Green
+		vadText = "🗣 Falando"
+		vadCol = ui.ColLime
+		vadBg = rl.NewColor(24, 85, 48, 255)
 	}
-	rl.DrawRectangle(24, y, int32(volFill), 10, volColor)
+	uiState.DrawBadge(contentX+contentW-90, y-1, vadText, vadBg, vadCol)
 
-	// Threshold line
-	threshX := 24 + int32((threshold/0.2)*barWidth)
-	if threshX > 24+int32(barWidth) {
-		threshX = 24 + int32(barWidth)
+	uiState.DrawText(fmt.Sprintf("RMS: %.4f | Limiar: %.4f (+/-)", volume, threshold), int32(contentX), int32(y)+16, 11, ui.ColTextMuted)
+	y += 32
+
+	// Audio Level Bar with Threshold needle
+	barRec := rl.NewRectangle(contentX, y, contentW, 8)
+	volFill := ui.ColSkyBlue
+	if isSpeaking {
+		volFill = ui.ColLime
 	}
-	rl.DrawLine(threshX, y-3, threshX, y+13, rl.Red)
+	drawHUDProgressBar(barRec, volume, 0.15, volFill, ui.ColScrollTrack)
+
+	// Threshold red line marker
+	threshX := barRec.X + (threshold/0.15)*barRec.Width
+	if threshX > barRec.X+barRec.Width {
+		threshX = barRec.X + barRec.Width
+	}
+	rl.DrawLineEx(rl.NewVector2(threshX, barRec.Y-3), rl.NewVector2(threshX, barRec.Y+barRec.Height+3), 2.5, ui.ColRed)
 	y += 18
 
-	statusText := "Status: SILÊNCIO (Boca Fechada)"
-	statusColor := rl.LightGray
-	if isSpeaking {
-		statusText = "Status: FALANDO (Boca Aberta)"
-		statusColor = rl.Lime
+	// 6. Avatar & Window Status
+	uiState.DrawText(fmt.Sprintf("Figurino: %d/10 | Zoom: %.2fx | Pos: (%.0f, %.0f)", costume, scale, avatarX, avatarY), int32(contentX), int32(y), 11.5, ui.ColTextBody)
+	y += 18
+
+	// Hotkey status badges
+	borderlessBadge := "F10 Borderless"
+	borderlessCol := ui.ColTextMuted
+	if wm.IsBorderless() {
+		borderlessCol = ui.ColLime
 	}
-	uiState.DrawText(statusText, 24, y, 13, statusColor)
+	topmostBadge := "F11 Topmost"
+	topmostCol := ui.ColTextMuted
+	if wm.IsAlwaysOnTop() {
+		topmostCol = ui.ColSkyBlue
+	}
+	clickThruBadge := "F9 Click-Thru"
+	clickThruCol := ui.ColTextMuted
+	if wm.IsClickThrough() {
+		clickThruCol = ui.ColLavender
+	}
+
+	badgeY := y
+	uiState.DrawBadge(contentX, badgeY, borderlessBadge, ui.ColCardBg, borderlessCol)
+	uiState.DrawBadge(contentX+125, badgeY, topmostBadge, ui.ColCardBg, topmostCol)
+	uiState.DrawBadge(contentX+238, badgeY, clickThruBadge, ui.ColCardBg, clickThruCol)
 }
 
 // ensureDefaultAvatars guarantees defaultAvatar.save and slugcat.save exist in assets/samples.
