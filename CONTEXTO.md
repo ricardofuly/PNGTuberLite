@@ -93,6 +93,9 @@ O **PNGTuber Lite** é uma aplicação nativa e ultra-leve em **Go** criada para
     ├── profiler/                       # [Fase 11] Telemetria e Profiler de Recursos
     │   ├── profiler.go                 # Amostragem em tempo real de CPU (ticks /proc), RAM Física (RSS), Go Heap e VRAM GPU
     │   └── profiler_test.go            # Testes unitários do profiler
+    ├── updater/                        # [Fase 12] Auto-Update e Sistema de Hotfix
+    │   ├── updater.go                  # Verificação assíncrona no GitHub Releases, in-place update e extração de binários
+    │   └── updater_test.go             # Testes unitários do parser de versão e extração de tar.gz
     └── editor/                         # [Fase 10] Editor Visual de Avatares
         ├── editor.go                   # Editor completo de camadas, hierarquia, propriedades, gizmo no canvas, drag & drop e exportação .save
         └── editor_test.go              # Testes unitários do editor de avatares
@@ -156,6 +159,15 @@ Uma camada só é desenhada se todas as 3 condições forem verdadeiras:
 - **CPU**: Amostragem periódica de ticks de CPU do processo via `/proc/self/stat` normalizada pela quantidade de cores lógicos.
 - **RAM Física (RSS)**: Leitura de páginas residentes via `/proc/self/statm` (inclui alocações CGo, Raylib e drivers OpenGL/Mesa) combinada com métricas de heap Go (`runtime.MemStats`).
 - **GPU e Render**: Monitoramento de tempo de renderização em milissegundos por quadro, contagem de texturas ativas e cálculo de VRAM dedicada.
+
+### 4.8 Auto-Update In-Place, Hotfix e CI/CD
+- **Repositório Oficial**: [`https://github.com/ricardofuly/PNGTuberLite`](https://github.com/ricardofuly/PNGTuberLite)
+- **Verificação Assíncrona no Startup**: O pacote `pkg/updater` consulta as releases do GitHub em background e alerta o usuário na UI com o botão flutuante `[ 🚀 ATUALIZAR ]`.
+- **Substituição Atômica In-Place**: O atualizador baixa o `.tar.gz` ou `.zip` do sistema operacional correspondente, extrai o novo binário e renomeia o executável ativo sem que o usuário precise reinstalar ou baixar manualmente.
+- **Workflows GitHub Actions**:
+  - `ci.yml`: Validação e execução contínua de toda a suíte de testes em cada push/PR.
+  - `release.yml`: Compilação nativa para Linux e Windows com injeção automática de versão e publicação de release com checksums SHA256.
+  - `hotfix.yml`: Disparador automatizado de tags para publicação instantânea de patches emergenciais.
 
 ---
 
