@@ -25,7 +25,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: 'stable'
           cache: true
 
       - name: Install Linux Build Dependencies
@@ -56,7 +56,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: 'stable'
           cache: true
 
       - name: Install Linux Build Dependencies
@@ -110,7 +110,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: 'stable'
           cache: true
 
       - name: Determine Version
@@ -187,7 +187,7 @@ jobs:
           echo "### ✨ Destaques e Novidades:" >> release_notes.md
 
           if [ -n "$PREV_TAG" ]; then
-            git log "${PREV_TAG}..${TAG}" --pretty=format:"- %s" | grep -v "Merge " | sed 's/^- feat(assets): /- /g; s/^- feat(ui): /- /g; s/^- feat(updater): /- /g; s/^- feat: /- /g; s/^- fix(ui): /- /g; s/^- fix(updater): /- /g; s/^- fix: /- /g; s/^- docs: /- /g' >> release_notes.md
+            git log "${PREV_TAG}..${TAG}" --pretty=format:"- %s" | grep -v "Merge " | sed 's/^- feat(tray): /- /g; s/^- feat(assets): /- /g; s/^- feat(ui): /- /g; s/^- feat(updater): /- /g; s/^- feat: /- /g; s/^- fix(ui): /- /g; s/^- fix(updater): /- /g; s/^- fix: /- /g; s/^- docs: /- /g' >> release_notes.md
             echo "" >> release_notes.md
           else
             echo "- Ícones embutidos em Sprite Atlas (32x32px) com renderização nativa via GPU." >> release_notes.md
