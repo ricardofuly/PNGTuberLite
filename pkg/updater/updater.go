@@ -97,6 +97,9 @@ func CheckForUpdate() (*ReleaseInfo, bool, error) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, false, nil // Nenhuma release publicada ainda
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, false, fmt.Errorf("resposta inválida do GitHub: status %d", resp.StatusCode)
 	}
