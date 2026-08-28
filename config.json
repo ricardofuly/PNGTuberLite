@@ -1,0 +1,41 @@
+{
+  "avatarPath": "assets/samples/defaultAvatar.save",
+  "audioDevice": "",
+  "audioThreshold": 0.05,
+  "windowWidth": 800,
+  "windowHeight": 800,
+  "windowX": 560,
+  "windowY": 140,
+  "windowTransparent": true,
+  "windowAlwaysOnTop": true,
+  "windowBorderless": false,
+  "targetFPS": 60,
+  "scale": 0.8999999,
+  "avatarRelX": 0.5,
+  "avatarRelY": 0.5,
+  "bobbingIntensity": 0.20769262,
+  "wobbleIntensity": 1,
+  "bounceStrength": 137.55167,
+  "bounceGravity": 917.6522,
+  "bounceOnCostume": false,
+  "blinkSpeed": 1,
+  "blinkChance": 200,
+  "backgroundColor": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "keybinds": {
+    "toggleMenu": 258,
+    "toggleEditor": 69,
+    "toggleHUD": 72,
+    "toggleClickThrough": 298,
+    "toggleBorderless": 299,
+    "toggleAlwaysOnTop": 300,
+    "testBounce": 32,
+    "resetAvatar": 82,
+    "increaseSens": 61,
+    "decreaseSens": 45
+  }
+}

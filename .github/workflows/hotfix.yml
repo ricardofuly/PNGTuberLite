@@ -1,0 +1,31 @@
+name: Hotfix Release Dispatcher
+
+on:
+  workflow_dispatch:
+    inputs:
+      hotfix_version:
+        description: 'Hotfix Version Tag (e.g. v1.0.1-hotfix1)'
+        required: true
+        default: 'v1.0.1-hotfix1'
+      release_title:
+        description: 'Hotfix Title / Summary'
+        required: true
+        default: 'Emergency Hotfix Patch'
+
+permissions:
+  contents: write
+
+jobs:
+  tag-and-trigger:
+    name: Create Hotfix Tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Create Git Tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ inputs.hotfix_version }}" -m "${{ inputs.release_title }}"
+          git push origin "${{ inputs.hotfix_version }}"

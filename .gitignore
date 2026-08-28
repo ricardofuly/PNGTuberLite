@@ -1,0 +1,23 @@
+# Binaries and build artifacts
+pngtuber-lite
+pngtuber-lite.exe
+*.old
+*.old.exe
+*.tar.gz
+*.zip
+release-*/
+
+# Scratch and temporary debug scripts
+scratch/
+test_out.save
+out_test.save
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*~
