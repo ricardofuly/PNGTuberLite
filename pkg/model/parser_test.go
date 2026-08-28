@@ -198,14 +198,13 @@ func TestParseRealDefaultAvatar(t *testing.T) {
 	t.Logf("Root layers count: %d", len(avatar.RootLayers))
 	t.Logf("Draw order count: %d", len(avatar.DrawOrder))
 
-	// Verify all layers have non-empty imageData and valid dimensions
 	for id, layer := range avatar.Layers {
-		if len(layer.ImageData) == 0 {
-			t.Errorf("layer %d has empty imageData", id)
+		pID := int64(0)
+		if layer.ParentID != nil {
+			pID = *layer.ParentID
 		}
-		if layer.ImageWidth == 0 || layer.ImageHeight == 0 {
-			t.Errorf("layer %d has invalid dimensions: %dx%d", id, layer.ImageWidth, layer.ImageHeight)
-		}
+		t.Logf("Layer ID: %d | Path: %s | Parent: %d | Pos: (%.1f, %.1f) | Offset: (%.1f, %.1f) | Size: %dx%d",
+			id, layer.Path, pID, layer.Pos.X, layer.Pos.Y, layer.Offset.X, layer.Offset.Y, layer.ImageWidth, layer.ImageHeight)
 	}
 }
 

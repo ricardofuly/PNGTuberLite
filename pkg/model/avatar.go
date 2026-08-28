@@ -73,14 +73,21 @@ func (a *Avatar) BuildHierarchy() {
 		}
 	}
 
-	// Calculate tree depth for each layer (roots = 0, children = 1, grandchildren = 2)
+	// Calculate tree depth for each layer (roots = 0, children = 1, grandchildren = 2) with cycle protection
 	depthMap := make(map[int64]int, len(a.Layers))
+	visited := make(map[int64]bool, len(a.Layers))
+
 	var calcDepth func(id int64, currentDepth int)
 	calcDepth = func(id int64, currentDepth int) {
+		if visited[id] || currentDepth > 50 {
+			return // Break potential circular hierarchy reference
+		}
+		visited[id] = true
 		depthMap[id] = currentDepth
 		for _, child := range a.Children[id] {
 			calcDepth(child.Identification, currentDepth+1)
 		}
+		visited[id] = false
 	}
 	for _, root := range a.RootLayers {
 		calcDepth(root.Identification, 0)

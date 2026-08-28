@@ -316,9 +316,17 @@ func ApplyUpdate(rel *ReleaseInfo, progressCallback func(percent float32)) error
 		return fmt.Errorf("nenhum pacote compatível com %s/%s encontrado na release %s", osName, archName, rel.TagName)
 	}
 
-	// Download archive into memory
+	// Validate URL domain for security
+	downloadURL := targetAsset.BrowserDownloadURL
+	if !strings.HasPrefix(downloadURL, "https://github.com/") &&
+		!strings.HasPrefix(downloadURL, "https://objects.githubusercontent.com/") &&
+		!strings.HasPrefix(downloadURL, "https://api.github.com/") {
+		return fmt.Errorf("URL de download não autorizada por motivos de segurança: %q", downloadURL)
+	}
+
+	// Download archive into memory (up to 150MB)
 	client := &http.Client{Timeout: 90 * time.Second}
-	req, err := http.NewRequest("GET", targetAsset.BrowserDownloadURL, nil)
+	req, err := http.NewRequest("GET", downloadURL, nil)
 	if err != nil {
 		return err
 	}
@@ -340,8 +348,9 @@ func ApplyUpdate(rel *ReleaseInfo, progressCallback func(percent float32)) error
 	}
 
 	var buf bytes.Buffer
+	limitedBody := io.LimitReader(resp.Body, 150*1024*1024)
 	progressReader := &progressTracker{
-		reader:   resp.Body,
+		reader:   limitedBody,
 		total:    totalSize,
 		callback: progressCallback,
 	}
@@ -441,7 +450,12 @@ func (pt *progressTracker) Read(p []byte) (int, error) {
 	return n, err
 }
 
-// extractExecutableFromArchive extracts the main binary from .tar.gz or .zip archive.
+const (
+	// MaxDecompressedBinarySize limits decompressed executable binary to 150 MB (Zip Bomb protection).
+	MaxDecompressedBinarySize = 150 * 1024 * 1024
+)
+
+// extractExecutableFromArchive extracts the main binary from .tar.gz or .zip archive with decompression bounds.
 func extractExecutableFromArchive(data []byte, filename string) ([]byte, error) {
 	filename = strings.ToLower(filename)
 
@@ -463,7 +477,8 @@ func extractExecutableFromArchive(data []byte, filename string) ([]byte, error) 
 			}
 			baseName := filepath.Base(header.Name)
 			if baseName == "pngtuber-lite" || baseName == "pngtuber-lite.exe" {
-				return io.ReadAll(tarReader)
+				limitedReader := io.LimitReader(tarReader, MaxDecompressedBinarySize)
+				return io.ReadAll(limitedReader)
 			}
 		}
 		return nil, fmt.Errorf("executável pngtuber-lite não encontrado no arquivo tar.gz")
@@ -480,7 +495,8 @@ func extractExecutableFromArchive(data []byte, filename string) ([]byte, error) 
 					return nil, err
 				}
 				defer rc.Close()
-				return io.ReadAll(rc)
+				limitedReader := io.LimitReader(rc, MaxDecompressedBinarySize)
+				return io.ReadAll(limitedReader)
 			}
 		}
 		return nil, fmt.Errorf("executável pngtuber-lite não encontrado no arquivo zip")

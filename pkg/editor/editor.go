@@ -678,14 +678,8 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 			}
 			fW := float32(tex.Width) / float32(frames)
 			fH := float32(tex.Height)
-			destW := fW * t.Scale
-			destH := fH * t.Scale
-			pivot := rl.Vector2{
-				X: (destW * 0.5) - (l.Offset.X * t.Scale),
-				Y: (destH * 0.5) - (l.Offset.Y * t.Scale),
-			}
-			topLeftX := t.WorldPos.X - pivot.X
-			topLeftY := t.WorldPos.Y - pivot.Y
+			topLeftX := t.WorldPos.X + (l.Offset.X * t.Scale)
+			topLeftY := t.WorldPos.Y + (l.Offset.Y * t.Scale)
 
 			minX := float32(0)
 			minY := float32(0)
@@ -1222,17 +1216,9 @@ func (e *EditorState) drawLayerGizmo(layer *model.Layer, scale float32, origin r
 	fW := float32(tex.Width) / float32(frames)
 	fH := float32(tex.Height)
 
-	destW := fW * t.Scale
-	destH := fH * t.Scale
-
-	pivot := rl.Vector2{
-		X: (destW * 0.5) - (layer.Offset.X * t.Scale),
-		Y: (destH * 0.5) - (layer.Offset.Y * t.Scale),
-	}
-
 	// Exact top-left screen position matching render/renderer.go
-	topLeftX := t.WorldPos.X - pivot.X
-	topLeftY := t.WorldPos.Y - pivot.Y
+	topLeftX := t.WorldPos.X + (layer.Offset.X * t.Scale)
+	topLeftY := t.WorldPos.Y + (layer.Offset.Y * t.Scale)
 
 	// Compute selection box based on non-transparent sprite pixel boundaries
 	minX := float32(0)

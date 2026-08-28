@@ -143,8 +143,8 @@ func (ce *CaptureEngine) GetVolume() float32 {
 
 // SetThreshold dynamically updates the activation threshold.
 func (ce *CaptureEngine) SetThreshold(threshold float32) {
-	if threshold > 0 {
-		ce.vad.Threshold = threshold
+	if threshold > 0 && ce.vad != nil {
+		ce.vad.SetThreshold(threshold)
 	}
 }
 

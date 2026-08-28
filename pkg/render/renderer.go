@@ -23,13 +23,15 @@ type RenderState struct {
 
 // Renderer handles drawing layers with Raylib.
 type Renderer struct {
-	TextureCache *TextureCache
+	TextureCache     *TextureCache
+	cachedTransforms map[int64]LayerTransform
 }
 
 // NewRenderer creates a new avatar renderer.
 func NewRenderer(cache *TextureCache) *Renderer {
 	return &Renderer{
-		TextureCache: cache,
+		TextureCache:     cache,
+		cachedTransforms: make(map[int64]LayerTransform, 32),
 	}
 }
 
@@ -39,7 +41,16 @@ func (r *Renderer) Draw(state *RenderState) {
 		return
 	}
 
-	transforms := ComputeWorldTransformsEx(
+	if r.cachedTransforms == nil {
+		r.cachedTransforms = make(map[int64]LayerTransform, len(state.Avatar.Layers))
+	}
+
+	// Clear leftover keys if layer count changed
+	if len(r.cachedTransforms) != len(state.Avatar.Layers) {
+		clear(r.cachedTransforms)
+	}
+
+	ComputeWorldTransformsBuffer(
 		state.Avatar,
 		state.Origin,
 		state.Scale,
@@ -47,6 +58,7 @@ func (r *Renderer) Draw(state *RenderState) {
 		state.LayerOffsets,
 		state.LayerRotations,
 		state.FlipHorizontal,
+		r.cachedTransforms,
 	)
 
 	// Draw layers in sorted ZIndex order
@@ -62,7 +74,7 @@ func (r *Renderer) Draw(state *RenderState) {
 			continue
 		}
 
-		transform, ok := transforms[layer.Identification]
+		transform, ok := r.cachedTransforms[layer.Identification]
 		if !ok {
 			continue
 		}
@@ -96,20 +108,25 @@ func (r *Renderer) Draw(state *RenderState) {
 			frameHeight,
 		)
 
-		// Stretch factors
+		// Stretch factors (1.0 baseline + dynamic deformation delta)
 		stretchX := float32(1.0)
 		stretchY := float32(1.0)
 		if state.LayerStretches != nil {
 			if s, exists := state.LayerStretches[layer.Identification]; exists {
 				stretchX += s.X
 				stretchY += s.Y
+				if stretchX < 0.05 {
+					stretchX = 0.05
+				}
+				if stretchY < 0.05 {
+					stretchY = 0.05
+				}
 			}
 		}
 
 		destWidth := frameWidth * transform.Scale * stretchX
 		destHeight := frameHeight * transform.Scale * stretchY
 
-		// Destination rectangle on screen
 		destRec := rl.NewRectangle(
 			transform.WorldPos.X,
 			transform.WorldPos.Y,
@@ -117,23 +134,23 @@ func (r *Renderer) Draw(state *RenderState) {
 			destHeight,
 		)
 
-		// Pivot (origin relative to destination top-left).
-		offsetX := layer.Offset.X
+		// Pivot (Offset) point around which rotation and scaling occurs (Raylib origin is Pivot - TopLeft)
+		pivotX := -layer.Offset.X * transform.Scale * stretchX
+		pivotY := -layer.Offset.Y * transform.Scale * stretchY
 		if state.FlipHorizontal {
-			offsetX = -offsetX
+			pivotX = -pivotX
+		}
+		origin := rl.Vector2{
+			X: pivotX,
+			Y: pivotY,
 		}
 
-		pivot := rl.Vector2{
-			X: (destWidth * 0.5) - (offsetX * transform.Scale),
-			Y: (destHeight * 0.5) - (layer.Offset.Y * transform.Scale),
-		}
-
-		// 4. Draw texture with rotation around pivot
+		// Render layer with sub-pixel precision and bilinear filtering
 		rl.DrawTexturePro(
 			tex,
 			srcRec,
 			destRec,
-			pivot,
+			origin,
 			transform.Rotation,
 			rl.White,
 		)

@@ -2,14 +2,15 @@ package audio
 
 import (
 	"math"
+	"sync/atomic"
 )
 
 // VoiceActivityDetector processes audio PCM samples and determines speaking state with hysteresis and debounce.
 type VoiceActivityDetector struct {
-	Threshold         float32 // RMS activation threshold (default ~0.05)
-	HysteresisRatio   float32 // Deactivation threshold ratio (e.g. 0.80 of Threshold)
-	HoldOffFrames     int     // Frames of silence before closing mouth (debounce, e.g. 6 frames / ~100ms)
-	AttackFrames      int     // Frames of speech required before opening mouth (e.g. 1 frame)
+	thresholdBits     atomic.Uint32 // Atomic storage for threshold float32
+	HysteresisRatio   float32       // Deactivation threshold ratio (e.g. 0.80 of Threshold)
+	HoldOffFrames     int           // Frames of silence before closing mouth (debounce, e.g. 6 frames / ~100ms)
+	AttackFrames      int           // Frames of speech required before opening mouth (e.g. 1 frame)
 
 	isSpeaking        bool
 	consecutiveSpeech int
@@ -22,12 +23,26 @@ func NewVoiceActivityDetector(threshold float32) *VoiceActivityDetector {
 	if threshold <= 0 {
 		threshold = 0.05
 	}
-	return &VoiceActivityDetector{
-		Threshold:       threshold,
+	vad := &VoiceActivityDetector{
 		HysteresisRatio: 0.80,
 		HoldOffFrames:   6, // ~100ms hold for snappy, responsive mouth closing
 		AttackFrames:    1,
 	}
+	vad.SetThreshold(threshold)
+	return vad
+}
+
+// SetThreshold atomically updates the RMS activation threshold.
+func (vad *VoiceActivityDetector) SetThreshold(threshold float32) {
+	if threshold < 0.001 {
+		threshold = 0.001
+	}
+	vad.thresholdBits.Store(math.Float32bits(threshold))
+}
+
+// GetThreshold atomically reads the current threshold.
+func (vad *VoiceActivityDetector) GetThreshold() float32 {
+	return math.Float32frombits(vad.thresholdBits.Load())
 }
 
 // CalculateRMS computes the root mean square energy of a float32 audio sample slice with DC bias removal.
@@ -58,8 +73,9 @@ func (vad *VoiceActivityDetector) Process(samples []float32) (bool, float32) {
 	rms := CalculateRMS(samples)
 	vad.currentRMS = rms
 
-	onThreshold := vad.Threshold
-	offThreshold := vad.Threshold * vad.HysteresisRatio
+	threshold := vad.GetThreshold()
+	onThreshold := threshold
+	offThreshold := threshold * vad.HysteresisRatio
 
 	if vad.isSpeaking {
 		if rms < offThreshold {

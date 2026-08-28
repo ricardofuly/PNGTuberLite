@@ -40,8 +40,25 @@ type RawLayerData struct {
 	ImageData      *string     `json:"imageData"`
 }
 
+const (
+	// MaxSaveFileSize is the maximum permitted size for a .save file (100 MB).
+	MaxSaveFileSize = 100 * 1024 * 1024
+	// MaxLayerBase64Size is the maximum permitted base64 image length per layer (50 MB).
+	MaxLayerBase64Size = 50 * 1024 * 1024
+	// MaxTextureDimension is the maximum supported width/height for a layer (16384 px).
+	MaxTextureDimension = 16384
+)
+
 // ParseSaveFile reads and parses a .save file from the filesystem.
 func ParseSaveFile(filePath string) (*Avatar, error) {
+	fi, err := os.Stat(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to access save file %q: %w", filePath, err)
+	}
+	if fi.Size() > MaxSaveFileSize {
+		return nil, fmt.Errorf("save file %q exceeds maximum safe size limit (100MB)", filePath)
+	}
+
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read save file %q: %w", filePath, err)
@@ -51,6 +68,10 @@ func ParseSaveFile(filePath string) (*Avatar, error) {
 
 // ParseSaveData parses the byte content of a .save file.
 func ParseSaveData(data []byte) (*Avatar, error) {
+	if len(data) > MaxSaveFileSize {
+		return nil, fmt.Errorf("save data exceeds maximum safe size limit (100MB)")
+	}
+
 	// Clean potential BOM or leading/trailing whitespace
 	data = bytes.TrimSpace(data)
 	if len(data) == 0 {
@@ -273,6 +294,10 @@ func parseCostumeLayers(val interface{}) ([10]int, error) {
 
 // decodeBase64Image decodes a base64 string, stripping data URI headers if present.
 func decodeBase64Image(raw string) ([]byte, error) {
+	if len(raw) > MaxLayerBase64Size {
+		return nil, fmt.Errorf("layer imageData base64 payload exceeds safety limit (50MB)")
+	}
+
 	raw = strings.TrimSpace(raw)
 	// Strip "data:image/png;base64," prefix if it exists
 	if idx := strings.Index(raw, ","); idx != -1 && strings.HasPrefix(raw, "data:") {
@@ -314,6 +339,10 @@ func ExtractPNGDimensions(pngData []byte) (int, int) {
 	// In IHDR: width is at bytes 16..20, height is at bytes 20..24 (BigEndian uint32)
 	width := int(binary.BigEndian.Uint32(pngData[16:20]))
 	height := int(binary.BigEndian.Uint32(pngData[20:24]))
+
+	if width <= 0 || height <= 0 || width > MaxTextureDimension || height > MaxTextureDimension {
+		return 0, 0
+	}
 	return width, height
 }
 

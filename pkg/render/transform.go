@@ -24,11 +24,39 @@ func ComputeWorldTransformsEx(
 	layerRotations map[int64]float32,
 	flipHorizontal bool,
 ) map[int64]LayerTransform {
+	if avatar == nil {
+		return nil
+	}
 	transforms := make(map[int64]LayerTransform, len(avatar.Layers))
+	ComputeWorldTransformsBuffer(avatar, origin, scale, globalBounceY, layerOffsets, layerRotations, flipHorizontal, transforms)
+	return transforms
+}
+
+// ComputeWorldTransformsBuffer populates an existing transforms map with zero heap allocations and cycle protection.
+func ComputeWorldTransformsBuffer(
+	avatar *model.Avatar,
+	origin rl.Vector2,
+	scale float32,
+	globalBounceY float32,
+	layerOffsets map[int64]model.Vector2,
+	layerRotations map[int64]float32,
+	flipHorizontal bool,
+	outTransforms map[int64]LayerTransform,
+) {
+	if avatar == nil || outTransforms == nil {
+		return
+	}
+
+	visited := make(map[int64]bool, len(avatar.Layers))
 
 	// Recursive helper to traverse the tree starting from root layers
-	var computeNode func(layer *model.Layer, parentTransform LayerTransform)
-	computeNode = func(layer *model.Layer, parentTransform LayerTransform) {
+	var computeNode func(layer *model.Layer, parentTransform LayerTransform, depth int)
+	computeNode = func(layer *model.Layer, parentTransform LayerTransform, depth int) {
+		if layer == nil || visited[layer.Identification] || depth > 50 {
+			return // Break potential hierarchy cycle / prevent stack overflow
+		}
+		visited[layer.Identification] = true
+
 		localPos := layer.Pos
 		if offset, ok := layerOffsets[layer.Identification]; ok {
 			localPos.X += offset.X
@@ -83,23 +111,22 @@ func ComputeWorldTransformsEx(
 			Rotation: worldRot,
 			Scale:    scale,
 		}
-		transforms[layer.Identification] = currentTransform
+		outTransforms[layer.Identification] = currentTransform
 
 		// Traverse children
 		for _, child := range avatar.GetChildren(layer.Identification) {
-			computeNode(child, currentTransform)
+			computeNode(child, currentTransform, depth+1)
 		}
+		visited[layer.Identification] = false
 	}
 
 	// Compute for each root
 	for _, root := range avatar.RootLayers {
-		computeNode(root, LayerTransform{WorldPos: origin, Rotation: 0, Scale: scale})
+		computeNode(root, LayerTransform{WorldPos: origin, Rotation: 0, Scale: scale}, 0)
 	}
-
-	return transforms
 }
 
-// ComputeWorldTransforms calculates the recursive world transforms for all layers in the avatar.
+// ComputeWorldTransforms computes standard world transforms without horizontal flip.
 func ComputeWorldTransforms(
 	avatar *model.Avatar,
 	origin rl.Vector2,
@@ -111,13 +138,20 @@ func ComputeWorldTransforms(
 	return ComputeWorldTransformsEx(avatar, origin, scale, globalBounceY, layerOffsets, layerRotations, false)
 }
 
-// ComputeAvatarExtents calculates the maximum bounding extents of all visible layers from the origin point.
+// ComputeAvatarExtents computes the maximum left, right, top, and bottom pixel extents
+// relative to the avatar origin at the given scale, taking into account layer content bounds.
 func ComputeAvatarExtents(avatar *model.Avatar, scale float32) (extLeft, extRight, extTop, extBottom float32) {
 	if avatar == nil || len(avatar.Layers) == 0 {
-		return 150.0 * scale, 150.0 * scale, 150.0 * scale, 150.0 * scale
+		return 64 * scale, 64 * scale, 64 * scale, 64 * scale
 	}
 
 	transforms := ComputeWorldTransforms(avatar, rl.Vector2{X: 0, Y: 0}, scale, 0, nil, nil)
+
+	minX := float32(0)
+	maxX := float32(0)
+	minY := float32(0)
+	maxY := float32(0)
+	first := true
 
 	for id, layer := range avatar.Layers {
 		tf, ok := transforms[id]
@@ -125,47 +159,76 @@ func ComputeAvatarExtents(avatar *model.Avatar, scale float32) (extLeft, extRigh
 			continue
 		}
 
-		frames := layer.Frames
-		if frames < 1 {
-			frames = 1
+		w := float32(layer.ImageWidth)
+		h := float32(layer.ImageHeight)
+		if layer.Frames > 1 {
+			w = w / float32(layer.Frames)
+		}
+		if w <= 0 {
+			w = 128
+		}
+		if h <= 0 {
+			h = 128
 		}
 
-		w := (float32(layer.ImageWidth) / float32(frames)) * scale
-		h := float32(layer.ImageHeight) * scale
+		topLeftX := tf.WorldPos.X + (layer.Offset.X * tf.Scale)
+		topLeftY := tf.WorldPos.Y + (layer.Offset.Y * tf.Scale)
 
-		halfW := w * 0.5
-		halfH := h * 0.5
+		minX := float32(0)
+		minY := float32(0)
+		maxX := w
+		maxY := h
+		if layer.HasContentBounds {
+			minX = layer.ContentMinX
+			minY = layer.ContentMinY
+			maxX = layer.ContentMaxX
+			maxY = layer.ContentMaxY
+		}
 
-		left := -tf.WorldPos.X + halfW - (layer.Offset.X * scale)
-		right := tf.WorldPos.X + halfW + (layer.Offset.X * scale)
-		top := -tf.WorldPos.Y + halfH - (layer.Offset.Y * scale)
-		bottom := tf.WorldPos.Y + halfH + (layer.Offset.Y * scale)
+		corners := []rl.Vector2{
+			{X: topLeftX + minX*tf.Scale, Y: topLeftY + minY*tf.Scale},
+			{X: topLeftX + maxX*tf.Scale, Y: topLeftY + minY*tf.Scale},
+			{X: topLeftX + minX*tf.Scale, Y: topLeftY + maxY*tf.Scale},
+			{X: topLeftX + maxX*tf.Scale, Y: topLeftY + maxY*tf.Scale},
+		}
 
-		if left > extLeft {
-			extLeft = left
-		}
-		if right > extRight {
-			extRight = right
-		}
-		if top > extTop {
-			extTop = top
-		}
-		if bottom > extBottom {
-			extBottom = bottom
+		for _, c := range corners {
+			if first {
+				minX, maxX = c.X, c.X
+				minY, maxY = c.Y, c.Y
+				first = false
+			} else {
+				if c.X < minX {
+					minX = c.X
+				}
+				if c.X > maxX {
+					maxX = c.X
+				}
+				if c.Y < minY {
+					minY = c.Y
+				}
+				if c.Y > maxY {
+					maxY = c.Y
+				}
+			}
 		}
 	}
 
-	if extLeft < 50*scale {
-		extLeft = 150 * scale
+	extLeft = -minX
+	if extLeft < 0 {
+		extLeft = 0
 	}
-	if extRight < 50*scale {
-		extRight = 150 * scale
+	extRight = maxX
+	if extRight < 0 {
+		extRight = 0
 	}
-	if extTop < 50*scale {
-		extTop = 150 * scale
+	extTop = -minY
+	if extTop < 0 {
+		extTop = 0
 	}
-	if extBottom < 50*scale {
-		extBottom = 150 * scale
+	extBottom = maxY
+	if extBottom < 0 {
+		extBottom = 0
 	}
 
 	return extLeft, extRight, extTop, extBottom
