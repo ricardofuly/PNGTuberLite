@@ -3,19 +3,20 @@ package tray
 import (
 	"runtime"
 	"sync"
+	"sync/atomic"
 
 	"fyne.io/systray"
 	"pngtuber-lite/assets"
 )
 
-// TrayManager manages the system tray icon and menu.
+// TrayManager manages the system tray icon and menu in a thread-safe manner.
 type TrayManager struct {
-	mu        sync.Mutex
-	startFunc func()
-	endFunc   func()
-	onOpen    func()
-	onQuit    func()
-	running   bool
+	mu             sync.Mutex
+	startFunc      func()
+	endFunc        func()
+	pendingRestore atomic.Bool
+	pendingQuit    atomic.Bool
+	running        bool
 }
 
 var globalTray = &TrayManager{}
@@ -25,13 +26,30 @@ func GetTrayManager() *TrayManager {
 	return globalTray
 }
 
-// Setup initializes the tray with callbacks for opening the window and quitting.
-func (tm *TrayManager) Setup(onOpen func(), onQuit func()) {
+// RequestRestore signals the main thread to restore and focus the window.
+func (tm *TrayManager) RequestRestore() {
+	tm.pendingRestore.Store(true)
+}
+
+// CheckAndClearRestore checks if a window restore was requested from the tray.
+func (tm *TrayManager) CheckAndClearRestore() bool {
+	return tm.pendingRestore.Swap(false)
+}
+
+// RequestQuit signals the main thread to exit the application.
+func (tm *TrayManager) RequestQuit() {
+	tm.pendingQuit.Store(true)
+}
+
+// CheckAndClearQuit checks if quit was requested from the tray menu.
+func (tm *TrayManager) CheckAndClearQuit() bool {
+	return tm.pendingQuit.Swap(false)
+}
+
+// Setup initializes the tray with callbacks.
+func (tm *TrayManager) Setup() {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
-
-	tm.onOpen = onOpen
-	tm.onQuit = onQuit
 
 	start, end := systray.RunWithExternalLoop(tm.onReady, tm.onExit)
 	tm.startFunc = start
@@ -63,7 +81,6 @@ func (tm *TrayManager) Stop() {
 }
 
 func (tm *TrayManager) onReady() {
-	// Set icon according to OS
 	if runtime.GOOS == "windows" {
 		if len(assets.AppIconICO) > 0 {
 			systray.SetIcon(assets.AppIconICO)
@@ -79,11 +96,8 @@ func (tm *TrayManager) onReady() {
 	systray.SetTitle("PNGTuber Lite")
 	systray.SetTooltip("PNGTuber Lite — Avatar 2D")
 
-	// Set direct click action on tray icon
 	systray.SetOnTapped(func() {
-		if tm.onOpen != nil {
-			tm.onOpen()
-		}
+		tm.RequestRestore()
 	})
 
 	mOpen := systray.AddMenuItem("Abrir PNGTuber Lite", "Restaura e exibe a janela do aplicativo")
@@ -94,13 +108,9 @@ func (tm *TrayManager) onReady() {
 		for {
 			select {
 			case <-mOpen.ClickedCh:
-				if tm.onOpen != nil {
-					tm.onOpen()
-				}
+				tm.RequestRestore()
 			case <-mQuit.ClickedCh:
-				if tm.onQuit != nil {
-					tm.onQuit()
-				}
+				tm.RequestQuit()
 				return
 			}
 		}
@@ -108,5 +118,4 @@ func (tm *TrayManager) onReady() {
 }
 
 func (tm *TrayManager) onExit() {
-	// Cleanup if needed
 }

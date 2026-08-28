@@ -247,6 +247,44 @@ func isNewerVersion(remote, local string) bool {
 	return remoteClean != localClean
 }
 
+// CleanExecutablePath returns the normalized binary path without .old extensions or symlinks.
+func CleanExecutablePath() (string, error) {
+	execPath, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("falha ao obter executável: %w", err)
+	}
+	execPath, err = filepath.EvalSymlinks(execPath)
+	if err != nil {
+		return "", fmt.Errorf("falha ao resolver symlink: %w", err)
+	}
+
+	dir := filepath.Dir(execPath)
+	base := filepath.Base(execPath)
+	for strings.HasSuffix(base, ".old") {
+		base = strings.TrimSuffix(base, ".old")
+	}
+	return filepath.Join(dir, base), nil
+}
+
+// CleanupOldExecutables deletes lingering .old or .old.* backup binaries.
+func CleanupOldExecutables() {
+	targetPath, err := CleanExecutablePath()
+	if err != nil {
+		return
+	}
+	dir := filepath.Dir(targetPath)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if strings.HasPrefix(name, "pngtuber-lite") && strings.Contains(name, ".old") {
+			_ = os.Remove(filepath.Join(dir, name))
+		}
+	}
+}
+
 // ApplyUpdate downloads the release asset for the current OS/architecture and updates the binary in-place.
 func ApplyUpdate(rel *ReleaseInfo, progressCallback func(percent float32)) error {
 	if rel == nil || len(rel.Assets) == 0 {
@@ -318,34 +356,25 @@ func ApplyUpdate(rel *ReleaseInfo, progressCallback func(percent float32)) error
 		return fmt.Errorf("falha ao extrair executável: %w", err)
 	}
 
-	// Replace current running executable
-	execPath, err := os.Executable()
+	// Determine clean target executable path (e.g. pngtuber-lite, never pngtuber-lite.old)
+	targetPath, err := CleanExecutablePath()
 	if err != nil {
 		return fmt.Errorf("falha ao obter caminho do executável: %w", err)
 	}
-	execPath, err = filepath.EvalSymlinks(execPath)
-	if err != nil {
-		return fmt.Errorf("falha ao resolver symlink do executável: %w", err)
-	}
 
-	oldPath := execPath + ".old"
+	oldPath := targetPath + ".old"
 	_ = os.Remove(oldPath)
 
-	// Rename current executable to .old
-	if err := os.Rename(execPath, oldPath); err != nil {
-		if err := os.WriteFile(execPath, newBinaryBytes, 0755); err != nil {
-			return fmt.Errorf("falha ao substituir executável: %w", err)
-		}
-		return nil
-	}
+	// Rename current target executable to .old
+	_ = os.Rename(targetPath, oldPath)
 
-	// Write new binary
-	if err := os.WriteFile(execPath, newBinaryBytes, 0755); err != nil {
-		_ = os.Rename(oldPath, execPath)
+	// Write new binary directly to clean target path
+	if err := os.WriteFile(targetPath, newBinaryBytes, 0755); err != nil {
+		_ = os.Rename(oldPath, targetPath)
 		return fmt.Errorf("falha ao gravar nova versão: %w", err)
 	}
 
-	_ = os.Chmod(execPath, 0755)
+	_ = os.Chmod(targetPath, 0755)
 
 	return nil
 }
@@ -369,21 +398,17 @@ func OpenBrowser(url string) error {
 	return cmd.Start()
 }
 
-// RestartApp restarts the currently running application binary cleanly.
+// RestartApp restarts the newly updated application binary cleanly.
 func RestartApp() error {
-	execPath, err := os.Executable()
+	targetPath, err := CleanExecutablePath()
 	if err != nil {
 		return fmt.Errorf("falha ao obter executável: %w", err)
 	}
-	execPath, err = filepath.EvalSymlinks(execPath)
-	if err != nil {
-		return fmt.Errorf("falha ao resolver symlink: %w", err)
-	}
 
-	_ = os.Chmod(execPath, 0755)
+	_ = os.Chmod(targetPath, 0755)
 
-	cmd := exec.Command(execPath, os.Args[1:]...)
-	cmd.Dir = filepath.Dir(execPath)
+	cmd := exec.Command(targetPath, os.Args[1:]...)
+	cmd.Dir = filepath.Dir(targetPath)
 	setSysProcAttr(cmd)
 
 	if err := cmd.Start(); err != nil {
@@ -441,6 +466,7 @@ func extractExecutableFromArchive(data []byte, filename string) ([]byte, error) 
 				return io.ReadAll(tarReader)
 			}
 		}
+		return nil, fmt.Errorf("executável pngtuber-lite não encontrado no arquivo tar.gz")
 	} else if strings.HasSuffix(filename, ".zip") {
 		zipReader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 		if err != nil {
@@ -457,6 +483,7 @@ func extractExecutableFromArchive(data []byte, filename string) ([]byte, error) 
 				return io.ReadAll(rc)
 			}
 		}
+		return nil, fmt.Errorf("executável pngtuber-lite não encontrado no arquivo zip")
 	}
 
 	return data, nil

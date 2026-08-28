@@ -32,6 +32,12 @@ func main() {
 	updateFlag := flag.Bool("update", false, "Download and apply latest update/hotfix immediately")
 	flag.Parse()
 
+	// Cleanup lingering .old backup executables from previous updates
+	updater.CleanupOldExecutables()
+
+	// Register Linux Desktop Entry and App Icon for Ubuntu Dock
+	window.EnsureDesktopEntry()
+
 	if *versionFlag {
 		fmt.Printf("PNGTuber Lite %s\n", updater.CurrentVersion)
 		os.Exit(0)
@@ -159,33 +165,17 @@ func main() {
 
 	// Setup System Tray
 	trayMgr := tray.GetTrayManager()
-	isWindowHidden := false
-
-	restoreWindow := func() {
-		if isWindowHidden {
-			rl.ClearWindowState(rl.FlagWindowHidden)
-			rl.RestoreWindow()
-			rl.SetWindowFocused()
-			isWindowHidden = false
-		}
-	}
-
-	minimizeToTray := func() {
-		rl.SetWindowState(rl.FlagWindowHidden)
-		isWindowHidden = true
-	}
-
-	shouldExit := false
-
-	trayMgr.Setup(func() {
-		restoreWindow()
-	}, func() {
-		shouldExit = true
-	})
+	trayMgr.Setup()
 	trayMgr.Start()
 	defer trayMgr.Stop()
 
-	uiState.OnRequestMinimizeToTray = minimizeToTray
+	isWindowHidden := false
+	shouldExit := false
+
+	uiState.OnRequestMinimizeToTray = func() {
+		isWindowHidden = true
+		rl.SetWindowState(rl.FlagWindowHidden)
+	}
 	uiState.OnRequestClose = func() {
 		shouldExit = true
 	}
@@ -263,13 +253,30 @@ func main() {
 
 	// 8. Main Loop
 	for !shouldExit {
-		if rl.WindowShouldClose() {
-			uiState.ShowCloseModal = true
+		// Process thread-safe Tray Signals on the main thread
+		if trayMgr.CheckAndClearQuit() {
+			shouldExit = true
+			break
+		}
+		if trayMgr.CheckAndClearRestore() {
+			if isWindowHidden {
+				isWindowHidden = false
+				rl.ClearWindowState(rl.FlagWindowHidden)
+				rl.ClearWindowState(rl.FlagWindowMinimized)
+				rl.RestoreWindow()
+				rl.SetWindowFocused()
+			} else {
+				rl.SetWindowFocused()
+			}
 		}
 
 		if isWindowHidden {
-			time.Sleep(40 * time.Millisecond)
+			time.Sleep(30 * time.Millisecond)
 			continue
+		}
+
+		if rl.WindowShouldClose() {
+			uiState.ShowCloseModal = true
 		}
 		dt := rl.GetFrameTime()
 		if dt > 0.1 {
