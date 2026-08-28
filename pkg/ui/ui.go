@@ -27,18 +27,21 @@ const (
 
 // UIState manages the in-app interactive control drawer.
 type UIState struct {
-	IsOpen            bool
-	CurrentTab        Tab
-	AvailableAvatars  []string
-	AudioDevices      []string
-	SelectedDeviceIdx int
-	Font              rl.Font
-	HasCustomFont     bool
-	RebindingAction   string // Action currently waiting for a key press
-	OnAvatarSelected  func(filePath string)
-	OnDeviceSelected  func(deviceName string)
-	OnResetAvatar     func()
-	OnOpenEditor      func()
+	IsOpen                  bool
+	CurrentTab              Tab
+	AvailableAvatars        []string
+	AudioDevices            []string
+	SelectedDeviceIdx       int
+	Font                    rl.Font
+	HasCustomFont           bool
+	RebindingAction         string // Action currently waiting for a key press
+	ShowCloseModal          bool
+	OnAvatarSelected        func(filePath string)
+	OnDeviceSelected        func(deviceName string)
+	OnResetAvatar           func()
+	OnOpenEditor            func()
+	OnRequestClose          func()
+	OnRequestMinimizeToTray func()
 }
 
 // NewUIState creates a new UI manager.
@@ -183,7 +186,7 @@ func (ui *UIState) Draw(
 		GlobalIcons.DrawIcon(IconClose, menuBtnRec.X+10, menuBtnRec.Y+8, 18, rl.NewColor(255, 100, 100, 255))
 		ui.DrawText("FECHAR", int32(menuBtnRec.X)+32, int32(menuBtnRec.Y)+8, 14, rl.RayWhite)
 	} else {
-		GlobalIcons.DrawIcon(IconConfig, menuBtnRec.X+10, menuBtnRec.Y+8, 18, rl.SkyBlue)
+		GlobalIcons.DrawIcon(IconSettings, menuBtnRec.X+10, menuBtnRec.Y+8, 18, rl.SkyBlue)
 		ui.DrawText("CONFIG", int32(menuBtnRec.X)+32, int32(menuBtnRec.Y)+8, 14, rl.RayWhite)
 	}
 
@@ -199,11 +202,21 @@ func (ui *UIState) Draw(
 	}
 	rl.DrawRectangleRounded(editorBtnRec, 0.3, 4, editorBgColor)
 	rl.DrawRectangleRoundedLines(editorBtnRec, 0.3, 4, rl.NewColor(80, 140, 220, 255))
-	GlobalIcons.DrawIcon(IconFileText, editorBtnRec.X+10, editorBtnRec.Y+8, 18, rl.SkyBlue)
+	GlobalIcons.DrawIcon(IconEditor, editorBtnRec.X+10, editorBtnRec.Y+8, 18, rl.SkyBlue)
 	ui.DrawText("EDITOR", int32(editorBtnRec.X)+32, int32(editorBtnRec.Y)+8, 14, rl.RayWhite)
 
 	// Floating Update Button (Shown when new release/hotfix is available)
 	upState := updater.GetUpdateState()
+
+	// Automatically tick auto-restart countdown when update completes successfully
+	if upState.Success && !upState.RestartTriggered {
+		upState.RestartCountdown -= rl.GetFrameTime()
+		if upState.RestartCountdown <= 0 {
+			upState.RestartTriggered = true
+			go updater.RestartApp()
+		}
+	}
+
 	if upState.Available {
 		tag := "Nova Versão"
 		if upState.Latest != nil {
@@ -213,10 +226,10 @@ func (ui *UIState) Draw(
 		if upState.IsUpdating {
 			btnLabel = fmt.Sprintf("Baixando... %d%%", int(upState.Progress*100))
 		} else if upState.Success {
-			btnLabel = "Reiniciar App"
+			btnLabel = fmt.Sprintf("Reiniciando (%.0fs)", upState.RestartCountdown)
 		}
 
-		upBtnRec := rl.NewRectangle(248, 12, 185, 34)
+		upBtnRec := rl.NewRectangle(248, 12, 195, 34)
 		upHovered := rl.CheckCollisionPointRec(mousePos, upBtnRec)
 		upBgColor := rl.NewColor(30, 110, 60, 235)
 		if upHovered {
@@ -243,7 +256,7 @@ func (ui *UIState) Draw(
 		}
 		rl.DrawRectangleRounded(upBtnRec, 0.3, 4, upBgColor)
 		rl.DrawRectangleRoundedLines(upBtnRec, 0.3, 4, rl.Lime)
-		GlobalIcons.DrawIcon(IconDownload, upBtnRec.X+10, upBtnRec.Y+8, 18, rl.Lime)
+		GlobalIcons.DrawIcon(IconUpdate, upBtnRec.X+10, upBtnRec.Y+8, 18, rl.Lime)
 		ui.DrawText(btnLabel, int32(upBtnRec.X)+32, int32(upBtnRec.Y)+8, 13, rl.RayWhite)
 	}
 
@@ -267,11 +280,11 @@ func (ui *UIState) Draw(
 			icon int
 		}{
 			{TabAvatars, "Avatar", IconAvatar},
-			{TabAudio, "Áudio", IconMic},
-			{TabCostumes, "Roupas", IconGrid},
+			{TabAudio, "Áudio", IconAudio},
+			{TabCostumes, "Roupas", IconCostumes},
 			{TabPhysics, "Física", IconPhysics},
-			{TabKeybinds, "Teclas", IconGamepad},
-			{TabOBS, "OBS", IconSelection},
+			{TabKeybinds, "Teclas", IconKeys},
+			{TabOBS, "OBS", IconOBS},
 		}
 
 		tabW := float32(panelW-20) / float32(len(tabs))
@@ -318,8 +331,11 @@ func (ui *UIState) Draw(
 		}
 	}
 
-	// 5. Update Popup Modal (Rendered on top of everything when new version is found)
+	// 5. Update Popup Modal (Rendered on top when update is ready/downloading)
 	ui.drawUpdateModal(mousePos, screenW, screenH)
+
+	// 6. Close Confirmation Modal (Rendered when user requests close)
+	ui.drawCloseConfirmModal(mousePos, screenW, screenH)
 }
 
 func (ui *UIState) drawAvatarsTab(panelRec rl.Rectangle, startY int32, cfg *config.Config, mousePos rl.Vector2) {
@@ -1057,6 +1073,105 @@ func (ui *UIState) drawUpdateModal(mousePos rl.Vector2, screenW, screenH float32
 	}
 	rl.DrawRectangleRounded(laterRec, 0.2, 4, laterCol)
 	rl.DrawRectangleRoundedLines(laterRec, 0.2, 4, rl.Gray)
-	GlobalIcons.DrawIcon(IconClock, laterRec.X+24, laterRec.Y+9, 18, rl.White)
+	GlobalIcons.DrawIcon(IconRestore, laterRec.X+24, laterRec.Y+9, 18, rl.White)
 	ui.DrawText("Lembrar Depois", int32(laterRec.X)+50, int32(laterRec.Y)+9, 14, rl.RayWhite)
 }
+
+func (ui *UIState) drawCloseConfirmModal(mousePos rl.Vector2, screenW, screenH float32) {
+	if !ui.ShowCloseModal {
+		return
+	}
+
+	// 1. Semi-transparent backdrop overlay
+	rl.DrawRectangle(0, 0, int32(screenW), int32(screenH), rl.NewColor(0, 0, 0, 195))
+
+	// 2. Centered Modal Box
+	modalW := float32(500)
+	modalH := float32(230)
+	modalX := (screenW - modalW) / 2
+	modalY := (screenH - modalH) / 2
+	if modalX < 10 {
+		modalX = 10
+	}
+	if modalY < 10 {
+		modalY = 10
+	}
+	modalRec := rl.NewRectangle(modalX, modalY, modalW, modalH)
+
+	rl.DrawRectangleRounded(modalRec, 0.06, 6, rl.NewColor(18, 22, 34, 255))
+	rl.DrawRectangleRoundedLines(modalRec, 0.06, 6, rl.NewColor(65, 85, 130, 255))
+
+	// Header
+	GlobalIcons.DrawIcon(IconSettings, modalX+20, modalY+18, 22, rl.SkyBlue)
+	ui.DrawText("PNGTuber Lite — Fechar Aplicativo", int32(modalX)+50, int32(modalY)+20, 16, rl.RayWhite)
+
+	// Close 'X' button on top-right to dismiss
+	closeRec := rl.NewRectangle(modalX+modalW-36, modalY+14, 24, 24)
+	if rl.CheckCollisionPointRec(mousePos, closeRec) {
+		rl.DrawRectangleRounded(closeRec, 0.3, 4, rl.NewColor(80, 40, 50, 255))
+		if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
+			ui.ShowCloseModal = false
+		}
+	}
+	GlobalIcons.DrawIcon(IconClose, closeRec.X+4, closeRec.Y+4, 16, rl.LightGray)
+
+	// Question text
+	ui.DrawText("Deseja fechar o aplicativo ou manter minimizado no tray?", int32(modalX)+22, int32(modalY)+62, 14, rl.RayWhite)
+	ui.DrawText("• Minimizado: o avatar continua ativo em segundo plano.", int32(modalX)+22, int32(modalY)+90, 12, rl.LightGray)
+	ui.DrawText("• Fechar: encerra totalmente o processo do aplicativo.", int32(modalX)+22, int32(modalY)+110, 12, rl.LightGray)
+
+	// Action buttons
+	btnH := float32(36)
+	curY := modalY + 158
+
+	// 1. Minimizar no Tray
+	minBtn := rl.NewRectangle(modalX+20, curY, 175, btnH)
+	minHover := rl.CheckCollisionPointRec(mousePos, minBtn)
+	minBg := rl.NewColor(30, 75, 130, 255)
+	if minHover {
+		minBg = rl.NewColor(42, 105, 175, 255)
+		if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
+			ui.ShowCloseModal = false
+			if ui.OnRequestMinimizeToTray != nil {
+				ui.OnRequestMinimizeToTray()
+			}
+		}
+	}
+	rl.DrawRectangleRounded(minBtn, 0.2, 4, minBg)
+	rl.DrawRectangleRoundedLines(minBtn, 0.2, 4, rl.SkyBlue)
+	GlobalIcons.DrawIcon(IconEnable, minBtn.X+10, minBtn.Y+9, 18, rl.RayWhite)
+	ui.DrawText("Minimizar no Tray", int32(minBtn.X)+34, int32(minBtn.Y)+9, 13, rl.RayWhite)
+
+	// 2. Fechar Aplicativo
+	quitBtn := rl.NewRectangle(modalX+205, curY, 155, btnH)
+	quitHover := rl.CheckCollisionPointRec(mousePos, quitBtn)
+	quitBg := rl.NewColor(135, 35, 45, 255)
+	if quitHover {
+		quitBg = rl.NewColor(175, 45, 60, 255)
+		if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
+			ui.ShowCloseModal = false
+			if ui.OnRequestClose != nil {
+				ui.OnRequestClose()
+			}
+		}
+	}
+	rl.DrawRectangleRounded(quitBtn, 0.2, 4, quitBg)
+	rl.DrawRectangleRoundedLines(quitBtn, 0.2, 4, rl.Red)
+	GlobalIcons.DrawIcon(IconClose, quitBtn.X+10, quitBtn.Y+9, 18, rl.RayWhite)
+	ui.DrawText("Fechar Aplicativo", int32(quitBtn.X)+34, int32(quitBtn.Y)+9, 13, rl.RayWhite)
+
+	// 3. Cancelar
+	canBtn := rl.NewRectangle(modalX+370, curY, 110, btnH)
+	canHover := rl.CheckCollisionPointRec(mousePos, canBtn)
+	canBg := rl.NewColor(42, 48, 65, 255)
+	if canHover {
+		canBg = rl.NewColor(58, 66, 88, 255)
+		if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
+			ui.ShowCloseModal = false
+		}
+	}
+	rl.DrawRectangleRounded(canBtn, 0.2, 4, canBg)
+	rl.DrawRectangleRoundedLines(canBtn, 0.2, 4, rl.Gray)
+	ui.DrawText("Cancelar", int32(canBtn.X)+26, int32(canBtn.Y)+9, 13, rl.RayWhite)
+}
+

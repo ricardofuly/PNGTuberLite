@@ -8,11 +8,14 @@
 
 - 🚀 **Ultra-leve e Instantâneo**: Consumo mínimo de memória RAM (< 30MB) e uso desprezível de CPU.
 - 🎨 **Compatibilidade Nativa com `.save`**: Lê arquivos `.save` do PNGTuber-Plus sem necessidade de conversão manual.
-- ⚙️ **Painel de Controle Flutuante (Menu UI)**: Pressione `TAB`, `ESC`, `C` ou clique no botão `[ ⚙️ MENU ]` no canto da tela para abrir o menu com abas:
-  - 📁 **Avatares**: Seleção e troca de avatares `.save` em tempo real sem reiniciar o app.
+- 🗂️ **Ícones Nativos & Ícone Oficial do App**: Suporte completo a ícones renderizados via GPU e ícone oficial integrado para Windows (`.ico`/`.syso`) e Linux (`rl.SetWindowIcon`).
+- 📌 **Bandeja do Sistema (System Tray)**: Permite minimizar o app para a bandeja com menu rápido ("Abrir PNGTuber Lite" e "Sair") e confirmação inteligente ao fechar.
+- ⚙️ **Painel de Controle Flutuante (Menu UI)**: Pressione `TAB`, `ESC`, `C` ou clique no botão `[ CONFIG ]` no canto da tela para abrir o menu com abas:
+  - 📁 **Avatar**: Seleção e troca de avatares `.save` em tempo real sem reiniciar o app.
   - 🎙️ **Áudio**: VU Meter com volume ao vivo, seletor de microfones do SO e calibração de sensibilidade.
-  - 👔 **Figurinos**: Botões dos 10 figurinos com alternância instantânea.
+  - 👔 **Roupas**: Botões dos 10 figurinos com alternância instantânea.
   - 🌀 **Física**: Sliders de força do pulo, gravidade e velocidade do piscar.
+  - ⌨️ **Teclas**: Visualização e remapeamento interativo de todos os atalhos.
   - 🪟 **OBS**: Ativação do modo overlay em 1 clique, seletor de fundos (Transparente, Verde Chroma Key, Magenta, Azul) e guia passo a passo.
 - 🌊 **Física Hierárquica Completa**: Propagação de inércia do corpo para a cabeça e da cabeça para os cabelos e roupas com spring-damper, arrasto e esticamento dinâmico.
 
@@ -120,6 +123,7 @@ O PNGTuber Lite inclui um sistema inteligente de atualização e aplicação de 
 - [`pkg/ui`](pkg/ui): Interface gráfica com abas (Avatar, Áudio, Roupas, Física, Teclas, OBS) e TrueType UTF-8.
 - [`pkg/editor`](pkg/editor): Editor visual de criação de avatares com gizmo no canvas, hierarquia e drag-and-drop.
 - [`pkg/profiler`](pkg/profiler): Monitoramento em tempo real de CPU (ticks), RAM Física (RSS), Go Heap e VRAM GPU.
+- [`pkg/tray`](pkg/tray): Integração nativa com a bandeja do sistema (System Tray) para Windows e Linux.
 - [`pkg/updater`](pkg/updater): Verificação de releases no GitHub, in-place auto-updater e hotfixes.
 - [`assets/samples`](assets/samples): Arquivo `defaultAvatar.save` original de exemplo.
 

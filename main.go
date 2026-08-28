@@ -17,6 +17,7 @@ import (
 	"pngtuber-lite/pkg/model"
 	"pngtuber-lite/pkg/profiler"
 	"pngtuber-lite/pkg/render"
+	"pngtuber-lite/pkg/tray"
 	"pngtuber-lite/pkg/ui"
 	"pngtuber-lite/pkg/updater"
 	"pngtuber-lite/pkg/window"
@@ -40,13 +41,12 @@ func main() {
 		fmt.Printf("Verificando atualizações para o PNGTuber Lite (versão atual: %s)...\n", updater.CurrentVersion)
 		rel, hasUpdate, err := updater.CheckForUpdate()
 		if err != nil {
-			log.Fatalf("Erro ao verificar atualização: %v\n", err)
+			log.Fatalf("Erro ao verificar atualizações: %v\n", err)
 		}
 		if hasUpdate {
-			fmt.Printf("Nova versão disponível: %s (Publicada em %s)\n", rel.TagName, rel.PublishedAt.Format("02/01/2006"))
-			fmt.Printf("Execute 'pngtuber-lite -update' para atualizar automaticamente.\n")
+			fmt.Printf("✓ Nova versão disponível: %s\nURL: %s\n", rel.TagName, rel.HTMLURL)
 		} else {
-			fmt.Printf("Você já está na versão mais recente (%s).\n", updater.CurrentVersion)
+			fmt.Printf("✓ O aplicativo está na versão mais recente (%s).\n", updater.CurrentVersion)
 		}
 		os.Exit(0)
 	}
@@ -118,6 +118,9 @@ func main() {
 	wm.InitWindow()
 	defer wm.CloseWindow()
 
+	// Disable default exit key (ESC) to allow custom overlay handling
+	rl.SetExitKey(0)
+
 	// Load Icon Atlas and Official Logo
 	if err := ui.GlobalIcons.Load(); err != nil {
 		log.Printf("Warning: Could not load icons: %v", err)
@@ -153,6 +156,39 @@ func main() {
 	uiState := ui.NewUIState()
 	uiState.InitFont()
 	defer uiState.Unload()
+
+	// Setup System Tray
+	trayMgr := tray.GetTrayManager()
+	isWindowHidden := false
+
+	restoreWindow := func() {
+		if isWindowHidden {
+			rl.ClearWindowState(rl.FlagWindowHidden)
+			rl.RestoreWindow()
+			rl.SetWindowFocused()
+			isWindowHidden = false
+		}
+	}
+
+	minimizeToTray := func() {
+		rl.SetWindowState(rl.FlagWindowHidden)
+		isWindowHidden = true
+	}
+
+	shouldExit := false
+
+	trayMgr.Setup(func() {
+		restoreWindow()
+	}, func() {
+		shouldExit = true
+	})
+	trayMgr.Start()
+	defer trayMgr.Stop()
+
+	uiState.OnRequestMinimizeToTray = minimizeToTray
+	uiState.OnRequestClose = func() {
+		shouldExit = true
+	}
 
 	editorState := editor.NewEditorState(texCache, uiState)
 	editorState.SetAvatar(avatar, cfg.AvatarPath)
@@ -226,7 +262,15 @@ func main() {
 	sysProfiler := profiler.NewSystemProfiler()
 
 	// 8. Main Loop
-	for !rl.WindowShouldClose() {
+	for !shouldExit {
+		if rl.WindowShouldClose() {
+			uiState.ShowCloseModal = true
+		}
+
+		if isWindowHidden {
+			time.Sleep(40 * time.Millisecond)
+			continue
+		}
 		dt := rl.GetFrameTime()
 		if dt > 0.1 {
 			dt = 0.1
@@ -305,7 +349,9 @@ func main() {
 		}
 
 		if rl.IsKeyPressed(rl.KeyEscape) {
-			if uiState.RebindingAction != "" {
+			if uiState.ShowCloseModal {
+				uiState.ShowCloseModal = false
+			} else if uiState.RebindingAction != "" {
 				uiState.RebindingAction = ""
 			} else if editorState.IsOpen {
 				editorState.IsOpen = false
@@ -393,12 +439,12 @@ func main() {
 
 		// --- Mouse Navigation (Compatível com Wayland e X11) ---
 
-		// Don't drag avatar if clicking on UI menu button or open drawer panel
+		// Don't drag avatar if clicking on UI menu button or open drawer panel/modals
 		isOverUI := false
-		if editorState.IsOpen {
+		if editorState.IsOpen || uiState.ShowCloseModal || (updater.GetUpdateState().ShowPopup && updater.GetUpdateState().Latest != nil) {
 			isOverUI = true
 		}
-		menuBtnRec := rl.NewRectangle(12, 12, 230, 34)
+		menuBtnRec := rl.NewRectangle(12, 12, 450, 34)
 		if rl.CheckCollisionPointRec(mousePos, menuBtnRec) {
 			isOverUI = true
 		}

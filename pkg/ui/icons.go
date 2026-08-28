@@ -1,106 +1,110 @@
 package ui
 
 import (
-	"encoding/json"
-	"fmt"
-
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"pngtuber-lite/assets"
 )
 
-// Icon IDs mapped from the sprite atlas
+// Icon IDs mapped to individual embedded icon textures
 const (
-	IconPlay          = 1
-	IconVolume        = 10
-	IconMute          = 12
-	IconPlus          = 21
-	IconGrid          = 28
-	IconLayers        = 30
-	IconDuplicate     = 34
-	IconInfo          = 35
-	IconReset         = 36
-	IconClock         = 37
-	IconConfig        = 40
-	IconMic           = 52
-	IconMicMute       = 53
-	IconHeart         = 54
-	IconAvatar        = 55
-	IconSearch        = 59
-	IconTarget        = 66
-	IconSelection     = 69
-	IconMusic         = 73
-	IconDownload      = 76
-	IconPhysics       = 82
-	IconFileText      = 84
-	IconFileImage     = 87
-	IconFolder        = 89
-	IconSave          = 96
-	IconGamepad       = 99
-	IconClose         = 23 // Question/Cross alternative or drawn
+	IconAdd = iota + 1
+	IconAudio
+	IconAvatar
+	IconChange
+	IconClose
+	IconDelete
+	IconDuplicate
+	IconEditor
+	IconEnable
+	IconFavorite
+	IconPhysics
+	IconKeys
+	IconLogo
+	IconOBS
+	IconOpenEditor
+	IconPNGFile
+	IconRemove
+	IconRestart
+	IconRestore
+	IconCostumes
+	IconSave
+	IconSelected
+	IconSettings
+	IconUpdate
+
+	// Semantic & Compatibility Aliases
+	IconDownload  = IconUpdate
+	IconConfig    = IconSettings
+	IconFileText  = IconOpenEditor
+	IconFileImage = IconPNGFile
+	IconReset     = IconRestore
+	IconPlus      = IconAdd
+	IconGrid      = IconCostumes
+	IconGamepad   = IconKeys
+	IconMic       = IconAudio
+	IconSelection = IconOBS
+	IconClock     = IconRestore
+	IconSearch    = IconChange
 )
 
-type atlasJSON struct {
-	Frames map[string]struct {
-		Frame struct {
-			X int `json:"x"`
-			Y int `json:"y"`
-			W int `json:"w"`
-			H int `json:"h"`
-		} `json:"frame"`
-	} `json:"frames"`
-}
-
-// IconManager handles loading and drawing atlas icons and application logo.
+// IconManager handles loading, caching, and drawing individual icons and application logo.
 type IconManager struct {
-	AtlasTexture rl.Texture2D
-	LogoTexture  rl.Texture2D
-	Frames       map[int]rl.Rectangle
-	Loaded       bool
+	Textures    map[int]rl.Texture2D
+	LogoTexture rl.Texture2D
+	Loaded      bool
 }
 
 var GlobalIcons = &IconManager{
-	Frames: make(map[int]rl.Rectangle),
+	Textures: make(map[int]rl.Texture2D),
 }
 
-// Load loads the icon atlas and logo textures into GPU memory from embedded assets.
+// Load loads all individual icon textures and application logo into GPU memory.
 func (im *IconManager) Load() error {
 	if !rl.IsWindowReady() {
 		return nil
 	}
 
-	// 1. Parse Atlas JSON from embedded assets
-	if len(assets.IconsAtlasJSON) > 0 {
-		var a atlasJSON
-		if err := json.Unmarshal(assets.IconsAtlasJSON, &a); err == nil {
-			for i := 0; i < 100; i++ {
-				key := fmt.Sprintf("IconsFlat-32 %d.ase", i)
-				if f, ok := a.Frames[key]; ok {
-					im.Frames[i] = rl.NewRectangle(float32(f.Frame.X), float32(f.Frame.Y), float32(f.Frame.W), float32(f.Frame.H))
-				}
-			}
+	rawIcons := map[int][]byte{
+		IconAdd:        assets.IconAddPNG,
+		IconAudio:      assets.IconAudioPNG,
+		IconAvatar:     assets.IconAvatarPNG,
+		IconChange:     assets.IconChangePNG,
+		IconClose:      assets.IconClosePNG,
+		IconDelete:     assets.IconDeletePNG,
+		IconDuplicate:  assets.IconDuplicatePNG,
+		IconEditor:     assets.IconEditorPNG,
+		IconEnable:     assets.IconEnablePNG,
+		IconFavorite:   assets.IconFavoritePNG,
+		IconPhysics:    assets.IconPhysicsPNG,
+		IconKeys:       assets.IconKeysPNG,
+		IconLogo:       assets.AppLogoPNG,
+		IconOBS:        assets.IconOBSPNG,
+		IconOpenEditor: assets.IconOpenEditorPNG,
+		IconPNGFile:    assets.IconPNGFilePNG,
+		IconRemove:     assets.IconRemovePNG,
+		IconRestart:    assets.IconRestartPNG,
+		IconRestore:    assets.IconRestorePNG,
+		IconCostumes:   assets.IconCostumesPNG,
+		IconSave:       assets.IconSavePNG,
+		IconSelected:   assets.IconSelectedPNG,
+		IconSettings:   assets.IconSettingsPNG,
+		IconUpdate:     assets.IconUpdatePNG,
+	}
+
+	for id, data := range rawIcons {
+		if len(data) == 0 {
+			continue
+		}
+		img := rl.LoadImageFromMemory(".png", data, int32(len(data)))
+		if img.Width > 0 {
+			tex := rl.LoadTextureFromImage(img)
+			rl.SetTextureFilter(tex, rl.FilterBilinear)
+			im.Textures[id] = tex
+			rl.UnloadImage(img)
 		}
 	}
 
-	// Fallback to mathematical grid if JSON parsing had missing frames
-	if len(im.Frames) == 0 {
-		for i := 0; i < 100; i++ {
-			row := float32(i / 10)
-			col := float32(i % 10)
-			im.Frames[i] = rl.NewRectangle(col*32, row*32, 32, 32)
-		}
-	}
-
-	// 2. Load Sprite Atlas Texture from embedded memory
-	if len(assets.IconsAtlasPNG) > 0 {
-		atlasImg := rl.LoadImageFromMemory(".png", assets.IconsAtlasPNG, int32(len(assets.IconsAtlasPNG)))
-		if atlasImg.Width > 0 {
-			im.AtlasTexture = rl.LoadTextureFromImage(atlasImg)
-			rl.SetTextureFilter(im.AtlasTexture, rl.FilterPoint) // Crisp pixel art icons
-			rl.UnloadImage(atlasImg)
-		}
-	}
-
-	// 3. Load Application Logo from embedded memory & set OS Window Icon
+	// Load Logo and Set Window Icon
 	if len(assets.AppLogoPNG) > 0 {
 		logoImg := rl.LoadImageFromMemory(".png", assets.AppLogoPNG, int32(len(assets.AppLogoPNG)))
 		if logoImg.Width > 0 {
@@ -115,13 +119,16 @@ func (im *IconManager) Load() error {
 	return nil
 }
 
-// Unload releases GPU textures.
+// Unload releases all GPU textures.
 func (im *IconManager) Unload() {
 	if !rl.IsWindowReady() {
 		return
 	}
-	if im.AtlasTexture.ID > 0 {
-		rl.UnloadTexture(im.AtlasTexture)
+	for id, tex := range im.Textures {
+		if tex.ID > 0 {
+			rl.UnloadTexture(tex)
+		}
+		delete(im.Textures, id)
 	}
 	if im.LogoTexture.ID > 0 {
 		rl.UnloadTexture(im.LogoTexture)
@@ -129,25 +136,35 @@ func (im *IconManager) Unload() {
 	im.Loaded = false
 }
 
-// DrawIcon renders an icon from the atlas at the specified position, scale and tint color.
+// DrawIcon renders an icon at the specified position, scale and tint color.
 func (im *IconManager) DrawIcon(iconID int, x, y float32, size float32, tint rl.Color) {
-	if !im.Loaded || im.AtlasTexture.ID == 0 {
+	if !im.Loaded {
 		return
 	}
-	src, ok := im.Frames[iconID]
-	if !ok {
-		src = rl.NewRectangle(0, 0, 32, 32)
+	tex, ok := im.Textures[iconID]
+	if !ok || tex.ID == 0 {
+		return
 	}
+	src := rl.NewRectangle(0, 0, float32(tex.Width), float32(tex.Height))
 	dest := rl.NewRectangle(x, y, size, size)
-	rl.DrawTexturePro(im.AtlasTexture, src, dest, rl.Vector2{X: 0, Y: 0}, 0, tint)
+	rl.DrawTexturePro(tex, src, dest, rl.Vector2{X: 0, Y: 0}, 0, tint)
 }
 
 // DrawLogo renders the application logo with aspect ratio preserved.
 func (im *IconManager) DrawLogo(x, y float32, width, height float32, tint rl.Color) {
-	if !im.Loaded || im.LogoTexture.ID == 0 {
+	if !im.Loaded {
 		return
 	}
-	src := rl.NewRectangle(0, 0, float32(im.LogoTexture.Width), float32(im.LogoTexture.Height))
+	tex := im.LogoTexture
+	if tex.ID == 0 {
+		if t, ok := im.Textures[IconLogo]; ok && t.ID > 0 {
+			tex = t
+		}
+	}
+	if tex.ID == 0 {
+		return
+	}
+	src := rl.NewRectangle(0, 0, float32(tex.Width), float32(tex.Height))
 	dest := rl.NewRectangle(x, y, width, height)
-	rl.DrawTexturePro(im.LogoTexture, src, dest, rl.Vector2{X: 0, Y: 0}, 0, tint)
+	rl.DrawTexturePro(tex, src, dest, rl.Vector2{X: 0, Y: 0}, 0, tint)
 }

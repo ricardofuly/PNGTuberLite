@@ -93,8 +93,13 @@ O **PNGTuber Lite** é uma aplicação nativa e ultra-leve em **Go** criada para
     ├── profiler/                       # [Fase 11] Telemetria e Profiler de Recursos
     │   ├── profiler.go                 # Amostragem em tempo real de CPU (ticks /proc), RAM Física (RSS), Go Heap e VRAM GPU
     │   └── profiler_test.go            # Testes unitários do profiler
+    ├── tray/                           # [Fase 13] Integração com System Tray (Bandeja do Sistema)
+    │   ├── tray.go                     # Suporte cross-platform (Windows e Linux) com menu de contexto e restauração rápida
+    │   └── tray_test.go                # Testes unitários de callbacks do system tray
     ├── updater/                        # [Fase 12] Auto-Update e Sistema de Hotfix
     │   ├── updater.go                  # Verificação assíncrona no GitHub Releases, in-place update e extração de binários
+    │   ├── restart_unix.go             # Execução de processo desacoplado (Setsid) no Linux/Unix
+    │   ├── restart_windows.go          # Execução de processo desacoplado (CREATE_NEW_PROCESS_GROUP) no Windows
     │   └── updater_test.go             # Testes unitários do parser de versão e extração de tar.gz
     └── editor/                         # [Fase 10] Editor Visual de Avatares
         ├── editor.go                   # Editor completo de camadas, hierarquia, propriedades, gizmo no canvas, drag & drop e exportação .save
@@ -160,19 +165,28 @@ Uma camada só é desenhada se todas as 3 condições forem verdadeiras:
 - **RAM Física (RSS)**: Leitura de páginas residentes via `/proc/self/statm` (inclui alocações CGo, Raylib e drivers OpenGL/Mesa) combinada com métricas de heap Go (`runtime.MemStats`).
 - **GPU e Render**: Monitoramento de tempo de renderização em milissegundos por quadro, contagem de texturas ativas e cálculo de VRAM dedicada.
 
-### 4.8 Auto-Update In-Place, Hotfix e CI/CD
+### 4.8 Auto-Update In-Place, Hotfix e Auto-Restart
 - **Repositório Oficial**: [`https://github.com/ricardofuly/PNGTuberLite`](https://github.com/ricardofuly/PNGTuberLite)
 - **Verificação Assíncrona no Startup**: O pacote `pkg/updater` consulta as releases do GitHub em background e alerta o usuário na UI com o botão flutuante `[ 🚀 ATUALIZAR ]`.
-- **Substituição Atômica In-Place**: O atualizador baixa o `.tar.gz` ou `.zip` do sistema operacional correspondente, extrai o novo binário e renomeia o executável ativo sem que o usuário precise reinstalar ou baixar manualmente.
+- **Substituição Atômica In-Place**: O atualizador baixa o `.tar.gz` ou `.zip` do sistema operacional correspondente, extrai o novo binário e renomeia o executável ativo com permissões `0755`.
+- **Reinício Automático Multiplataforma**: Spawning desacoplado do novo processo via `Setsid` (Linux/Unix) e `CREATE_NEW_PROCESS_GROUP` (Windows), com ticker automático no loop da interface após download bem-sucedido.
 - **Workflows GitHub Actions**:
   - `ci.yml`: Validação e execução contínua de toda a suíte de testes em cada push/PR.
   - `release.yml`: Compilação nativa para Linux e Windows com injeção automática de versão e publicação de release com checksums SHA256.
   - `hotfix.yml`: Disparador automatizado de tags para publicação instantânea de patches emergenciais.
 
-### 4.9 Sistema de Ícones em Sprite Atlas e Logo Oficial
-- **Atlas de Ícones (`IconsFlat-32.png` / `IconsFlat-32.json`)**: Gerenciador `IconManager` em `pkg/ui/icons.go` carrega o atlas de spritesheets de 32x32px e mapeia coordenadas exatas de 100 ícones.
-- **Eliminação de Emojis Unicode**: Todos os botões da toolbar (`Config`, `Editor`, `Update`), abas do menu (`Avatar`, `Áudio`, `Roupas`, `Física`, `Teclas`, `OBS`), botões de ação do editor (`+ PNG`, `+ Novo`, `Salvar`, `Duplicar`, `Excluir`) e modais foram substituídos por ícones nativos renderizados via GPU (`rl.DrawTexturePro`) com cores dinâmicas e suporte a Point Filtering para nitidez de pixel art.
-- **Logo Oficial (`assets/icons/logo.png`)**: O ícone do Gopher Gamer é automaticamente aplicado como ícone da janela do sistema operacional (`rl.SetWindowIcon`) e nos banners de interface.
+### 4.9 Sistema de Ícones Nativos e Logo Oficial
+- **Ícones Embutidos (`assets/icons/*.png`)**: Gerenciador `IconManager` em `pkg/ui/icons.go` carrega texturas dedicadas aceleradas por GPU para cada ação e aba da interface.
+- **Ícone do Aplicativo (Windows & Linux)**:
+  - **Linux**: Ícone aplicado em tempo de execução na janela Raylib (`rl.SetWindowIcon`) e na barra de tarefas / bandeja.
+  - **Windows**: Arquivo `assets/icons/icon.ico` integrado na seção de recursos PE via `rsrc_windows_amd64.syso`, garantindo ícone oficial no Windows Explorer, Alt+Tab e barra de tarefas.
+
+### 4.10 Sistema de Bandeja (System Tray) e Confirmação ao Fechar
+- **System Tray (`pkg/tray`)**: Ícone persistente na bandeja do sistema com menu de contexto ("Abrir PNGTuber Lite" e "Sair") e ação rápida de clique único para restaurar a janela.
+- **Modal de Confirmação**: Ao clicar no 'X' da janela ou fechar pelo sistema, o aplicativo intercepta o fechamento e exibe um modal perguntando se o usuário deseja:
+  1. **Minimizar no Tray**: Oculta a janela (`rl.SetWindowState(rl.FlagWindowHidden)`), mantendo o avatar e o microfone ativos em segundo plano com uso mínimo de CPU.
+  2. **Fechar Aplicativo**: Encerra totalmente o processo e salva as configurações de geometria.
+  3. **Cancelar**: Continua com a janela aberta.
 
 ---
 
@@ -186,12 +200,17 @@ go test -v ./pkg/model/... ./pkg/anim/... ./pkg/audio/... ./pkg/costume/... ./pk
 
 | Pacote | Testes | Status |
 |---|---|---|
-| `pkg/model` | `TestParseVector2`, `TestParseCostumeLayers`, `TestPNGDimensionsExtraction`, `TestParseSaveDataAndHierarchy`, `TestParseRealDefaultAvatar` | ✅ PASS |
+| `pkg/model` | `TestParseVector2`, `TestParseCostumeLayers`, `TestPNGDimensionsExtraction`, `TestParseSaveDataAndHierarchy`, `TestParseRealDefaultAvatar`, `TestSaveAndReloadAvatar` | ✅ PASS |
 | `pkg/anim` | `TestBlinkController`, `TestBounceController`, `TestSpriteSheetAnimator`, `TestWobbleAngleLimits` | ✅ PASS |
 | `pkg/audio` | `TestCalculateRMS`, `TestVADHysteresisAndDebounce` | ✅ PASS |
 | `pkg/costume` | `TestCostumeManager` | ✅ PASS |
-| `pkg/config` | `TestConfigLoadSave` | ✅ PASS |
+| `pkg/config` | `TestConfigLoadSave`, `TestKeybinds` | ✅ PASS |
 | `pkg/render` | `TestComputeWorldTransforms` (transformadas hierárquicas e rotação de nós) | ✅ PASS |
+| `pkg/ui` | `TestEmbeddedAssets` (validação de todos os ícones PNG, ICO e Logo) | ✅ PASS |
+| `pkg/tray` | `TestTrayManagerSetup` (registro de callbacks e eventos do tray) | ✅ PASS |
+| `pkg/editor` | `TestEditorStateNewAndModify` (adição e modificação de camadas) | ✅ PASS |
+| `pkg/updater` | `TestIsNewerVersion`, `TestExtractExecutableFromArchive` | ✅ PASS |
+| `pkg/profiler` | `TestSystemProfiler` | ✅ PASS |
 
 ---
 

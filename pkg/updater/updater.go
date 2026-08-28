@@ -345,6 +345,8 @@ func ApplyUpdate(rel *ReleaseInfo, progressCallback func(percent float32)) error
 		return fmt.Errorf("falha ao gravar nova versão: %w", err)
 	}
 
+	_ = os.Chmod(execPath, 0755)
+
 	return nil
 }
 
@@ -378,13 +380,17 @@ func RestartApp() error {
 		return fmt.Errorf("falha ao resolver symlink: %w", err)
 	}
 
+	_ = os.Chmod(execPath, 0755)
+
 	cmd := exec.Command(execPath, os.Args[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
+	cmd.Dir = filepath.Dir(execPath)
+	setSysProcAttr(cmd)
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("falha ao iniciar novo processo: %w", err)
 	}
+
+	time.Sleep(150 * time.Millisecond)
 	os.Exit(0)
 	return nil
 }

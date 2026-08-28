@@ -267,7 +267,7 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 	rl.DrawRectangleRec(headerRec, rl.NewColor(15, 18, 28, 250))
 	rl.DrawLine(0, 44, screenW, 44, rl.NewColor(45, 60, 95, 255))
 
-	ui.GlobalIcons.DrawIcon(ui.IconFileText, 16, 12, 18, rl.SkyBlue)
+	ui.GlobalIcons.DrawIcon(ui.IconEditor, 16, 12, 18, rl.SkyBlue)
 	e.UI.DrawText("EDITOR DE AVATAR (PNGTuber Lite)", 40, 12, 16, rl.SkyBlue)
 
 	// Save Button
@@ -325,7 +325,7 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 	} else {
 		rl.DrawRectangleRounded(addPNGBtn, 0.2, 4, rl.NewColor(28, 55, 95, 255))
 	}
-	ui.GlobalIcons.DrawIcon(ui.IconFileImage, addPNGBtn.X+14, addPNGBtn.Y+6, 16, rl.SkyBlue)
+	ui.GlobalIcons.DrawIcon(ui.IconPNGFile, addPNGBtn.X+14, addPNGBtn.Y+6, 16, rl.SkyBlue)
 	e.UI.DrawText("PNG", int32(addPNGBtn.X)+36, int32(addPNGBtn.Y)+6, 13, rl.RayWhite)
 
 	newAvBtn := rl.NewRectangle(leftRec.X+12+btnW+12, leftRec.Y+36, btnW, 28)
@@ -337,7 +337,7 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 	} else {
 		rl.DrawRectangleRounded(newAvBtn, 0.2, 4, rl.NewColor(32, 42, 65, 255))
 	}
-	ui.GlobalIcons.DrawIcon(ui.IconPlus, newAvBtn.X+14, newAvBtn.Y+6, 16, rl.Lime)
+	ui.GlobalIcons.DrawIcon(ui.IconAdd, newAvBtn.X+14, newAvBtn.Y+6, 16, rl.Lime)
 	e.UI.DrawText("Novo", int32(newAvBtn.X)+36, int32(newAvBtn.Y)+6, 13, rl.RayWhite)
 
 	// Layers List Scroll / Stack
@@ -404,7 +404,7 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 	} else {
 		rl.DrawRectangleRounded(delBtn, 0.2, 4, rl.NewColor(80, 25, 35, 255))
 	}
-	ui.GlobalIcons.DrawIcon(ui.IconClose, delBtn.X+12, delBtn.Y+8, 16, rl.NewColor(255, 120, 120, 255))
+	ui.GlobalIcons.DrawIcon(ui.IconDelete, delBtn.X+12, delBtn.Y+8, 16, rl.NewColor(255, 120, 120, 255))
 	e.UI.DrawText("Excluir", int32(delBtn.X)+32, int32(delBtn.Y)+8, 13, rl.RayWhite)
 
 	// 3. Right Sidebar: Layer Properties & Settings
