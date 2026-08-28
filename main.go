@@ -99,11 +99,15 @@ func main() {
 		cfg.AudioThreshold = float32(*thresholdFlag)
 	}
 
-	// 2. Load and Parse Avatar .save file with robust fallbacks
+	// 2. Load and Parse Avatar .save file with robust fallbacks and embedded assets
+	ensureDefaultAvatars()
+
 	if _, err := os.Stat(cfg.AvatarPath); os.IsNotExist(err) {
 		fallbacks := []string{
 			"assets/samples/defaultAvatar.save",
+			"assets/samples/slugcat.save",
 			"defaultAvatar.save",
+			"slugcat.save",
 			"../assets/samples/defaultAvatar.save",
 		}
 		for _, fb := range fallbacks {
@@ -116,7 +120,15 @@ func main() {
 
 	avatar, err := model.ParseSaveFile(cfg.AvatarPath)
 	if err != nil {
-		log.Fatalf("Error parsing avatar file %q: %v", cfg.AvatarPath, err)
+		log.Printf("Warning: Could not parse avatar from disk %q: %v. Attempting embedded fallback...", cfg.AvatarPath, err)
+		if strings.Contains(strings.ToLower(cfg.AvatarPath), "slugcat") && len(assets.SlugcatAvatarSave) > 0 {
+			avatar, err = model.ParseSaveData(assets.SlugcatAvatarSave)
+		} else if len(assets.DefaultAvatarSave) > 0 {
+			avatar, err = model.ParseSaveData(assets.DefaultAvatarSave)
+		}
+		if err != nil {
+			log.Fatalf("Fatal: Error parsing avatar file %q: %v", cfg.AvatarPath, err)
+		}
 	}
 	log.Printf("Loaded avatar %q with %d layers (%d root layers)", cfg.AvatarPath, len(avatar.Layers), len(avatar.RootLayers))
 
@@ -734,4 +746,23 @@ func drawDebugHUD(
 		statusColor = rl.Lime
 	}
 	uiState.DrawText(statusText, 24, y, 13, statusColor)
+}
+
+// ensureDefaultAvatars guarantees defaultAvatar.save and slugcat.save exist in assets/samples.
+func ensureDefaultAvatars() {
+	_ = os.MkdirAll("assets/samples", 0755)
+
+	if len(assets.DefaultAvatarSave) > 0 {
+		defaultPath := "assets/samples/defaultAvatar.save"
+		if _, err := os.Stat(defaultPath); os.IsNotExist(err) {
+			_ = os.WriteFile(defaultPath, assets.DefaultAvatarSave, 0644)
+		}
+	}
+
+	if len(assets.SlugcatAvatarSave) > 0 {
+		slugcatPath := "assets/samples/slugcat.save"
+		if _, err := os.Stat(slugcatPath); os.IsNotExist(err) {
+			_ = os.WriteFile(slugcatPath, assets.SlugcatAvatarSave, 0644)
+		}
+	}
 }

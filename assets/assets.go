@@ -87,3 +87,8 @@ var RegularFontTTF []byte
 //go:embed fonts/font_bold.ttf
 var BoldFontTTF []byte
 
+//go:embed samples/defaultAvatar.save
+var DefaultAvatarSave []byte
+
+//go:embed samples/slugcat.save
+var SlugcatAvatarSave []byte

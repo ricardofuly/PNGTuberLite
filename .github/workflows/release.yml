@@ -89,8 +89,9 @@ jobs:
       - name: Package Linux Release
         run: |
           mkdir -p release-linux
-          cp pngtuber-lite README.md config.json defaultAvatar.save release-linux/
+          cp pngtuber-lite README.md config.json release-linux/
           cp -r assets release-linux/
+          [ -f defaultAvatar.save ] && cp defaultAvatar.save release-linux/ || true
           tar -czvf pngtuber-lite-linux-amd64.tar.gz -C release-linux .
 
       - name: Upload Artifact
@@ -131,8 +132,9 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path release-windows
-          Copy-Item pngtuber-lite.exe, README.md, config.json, defaultAvatar.save -Destination release-windows/
+          Copy-Item pngtuber-lite.exe, README.md, config.json -Destination release-windows/
           Copy-Item -Recurse assets -Destination release-windows/
+          if (Test-Path defaultAvatar.save) { Copy-Item defaultAvatar.save -Destination release-windows/ }
           Compress-Archive -Path release-windows/* -DestinationPath pngtuber-lite-windows-amd64.zip
 
       - name: Upload Artifact
