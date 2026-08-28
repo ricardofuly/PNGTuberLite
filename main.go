@@ -206,6 +206,24 @@ func main() {
 		}
 	}
 
+	uiState.OnCreateNewAvatar = func() {
+		editorState.NewBlankAvatar()
+		editorState.IsOpen = true
+		uiState.IsOpen = false
+		avatar = editorState.Avatar
+		cfg.AvatarPath = editorState.AvatarFilePath
+	}
+
+	uiState.OnImportFolderAvatar = func(dirPath string) {
+		if err := editorState.CreateAvatarFromDirectory(dirPath); err == nil {
+			avatar = editorState.Avatar
+			cfg.AvatarPath = editorState.AvatarFilePath
+			editorState.IsOpen = true
+			uiState.IsOpen = false
+			uiState.ScanAvatars()
+		}
+	}
+
 	uiState.OnAvatarSelected = func(filePath string) {
 		newAvatar, err := model.ParseSaveFile(filePath)
 		if err != nil {
@@ -553,6 +571,7 @@ func main() {
 			Avatar:         avatar,
 			Origin:         rl.Vector2{X: avatarOriginX, Y: avatarOriginY},
 			Scale:          avatarScale,
+			FlipHorizontal: cfg.FlipHorizontal,
 			GlobalBounceY:  animator.Bounce.Y,
 			Costume:        costumeMgr.GetCostume(),
 			IsBlinking:     animator.Blink.IsBlinking,

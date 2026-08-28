@@ -20,6 +20,7 @@ type Config struct {
 	WindowBorderless  bool      `json:"windowBorderless"`
 	TargetFPS         int32     `json:"targetFPS"`
 	Scale             float32   `json:"scale"`
+	FlipHorizontal    bool      `json:"flipHorizontal"`    // Invert avatar horizontally (mirroring)
 	AvatarRelX        float32   `json:"avatarRelX"`        // Normalized horizontal position (0.0 to 1.0, default 0.5 = center)
 	AvatarRelY        float32   `json:"avatarRelY"`        // Normalized vertical position (0.0 to 1.0, default 0.5 = center)
 	BobbingIntensity  float32   `json:"bobbingIntensity"`  // Floating / idle breathing intensity (0.0 to 2.0, default 0.5)
@@ -48,6 +49,7 @@ func DefaultConfig() *Config {
 		WindowBorderless:  false, // start with border for initial positioning, togglable via key F10
 		TargetFPS:         60,
 		Scale:             1.0,
+		FlipHorizontal:    false,
 		AvatarRelX:        0.5,
 		AvatarRelY:        0.5,
 		BobbingIntensity:  0.5,

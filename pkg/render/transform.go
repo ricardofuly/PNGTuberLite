@@ -14,14 +14,15 @@ type LayerTransform struct {
 	Scale    float32
 }
 
-// ComputeWorldTransforms calculates the recursive world transforms for all layers in the avatar.
-func ComputeWorldTransforms(
+// ComputeWorldTransformsEx calculates the recursive world transforms for all layers with optional horizontal mirroring.
+func ComputeWorldTransformsEx(
 	avatar *model.Avatar,
 	origin rl.Vector2,
 	scale float32,
 	globalBounceY float32,
 	layerOffsets map[int64]model.Vector2,
 	layerRotations map[int64]float32,
+	flipHorizontal bool,
 ) map[int64]LayerTransform {
 	transforms := make(map[int64]LayerTransform, len(avatar.Layers))
 
@@ -37,6 +38,11 @@ func ComputeWorldTransforms(
 		localRot := float32(0)
 		if rot, ok := layerRotations[layer.Identification]; ok {
 			localRot = rot
+		}
+
+		if flipHorizontal {
+			localPos.X = -localPos.X
+			localRot = -localRot
 		}
 
 		var worldPos rl.Vector2
@@ -91,6 +97,18 @@ func ComputeWorldTransforms(
 	}
 
 	return transforms
+}
+
+// ComputeWorldTransforms calculates the recursive world transforms for all layers in the avatar.
+func ComputeWorldTransforms(
+	avatar *model.Avatar,
+	origin rl.Vector2,
+	scale float32,
+	globalBounceY float32,
+	layerOffsets map[int64]model.Vector2,
+	layerRotations map[int64]float32,
+) map[int64]LayerTransform {
+	return ComputeWorldTransformsEx(avatar, origin, scale, globalBounceY, layerOffsets, layerRotations, false)
 }
 
 // ComputeAvatarExtents calculates the maximum bounding extents of all visible layers from the origin point.

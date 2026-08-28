@@ -264,7 +264,28 @@ func (e *EditorState) SaveCurrentAvatar() error {
 	return nil
 }
 
-// HandleFileDrops detects drag-and-dropped PNG files onto the application window.
+// CreateAvatarFromDirectory builds and loads a new avatar from a folder of PNG sprites.
+func (e *EditorState) CreateAvatarFromDirectory(dirPath string) error {
+	av, err := model.BuildAvatarFromDirectory(dirPath)
+	if err != nil {
+		e.SetStatus(fmt.Sprintf("Erro ao importar pasta: %v", err))
+		return err
+	}
+
+	folderName := filepath.Base(dirPath)
+	targetSave := filepath.Join("assets/samples", strings.ToLower(folderName)+".save")
+	e.SetAvatar(av, targetSave)
+	_ = e.TextureCache.LoadAvatarTextures(av)
+	_ = e.SaveCurrentAvatar()
+
+	e.SetStatus(fmt.Sprintf("Avatar %q criado com %d camadas e salvo com sucesso!", folderName, len(av.Layers)))
+	if e.OnAvatarModified != nil {
+		e.OnAvatarModified()
+	}
+	return nil
+}
+
+// HandleFileDrops detects drag-and-dropped PNG files, directories, and .save files onto the application window.
 func (e *EditorState) HandleFileDrops() {
 	if !rl.IsFileDropped() {
 		return
@@ -273,21 +294,64 @@ func (e *EditorState) HandleFileDrops() {
 	files := rl.LoadDroppedFiles()
 	defer rl.UnloadDroppedFiles()
 
-	importedCount := 0
+	var pngList []string
+	var dirList []string
+	var saveList []string
+
 	for _, f := range files {
-		ext := strings.ToLower(filepath.Ext(f))
-		if ext == ".png" {
-			if err := e.AddLayerFromPNG(f); err == nil {
-				importedCount++
+		fi, err := os.Stat(f)
+		if err != nil {
+			continue
+		}
+		if fi.IsDir() {
+			dirList = append(dirList, f)
+		} else {
+			ext := strings.ToLower(filepath.Ext(f))
+			if ext == ".png" {
+				pngList = append(pngList, f)
+			} else if ext == ".save" {
+				saveList = append(saveList, f)
 			}
-		} else if ext == ".save" {
-			if av, err := model.ParseSaveFile(f); err == nil {
-				e.SetAvatar(av, f)
-				_ = e.TextureCache.LoadAvatarTextures(av)
-				e.SetStatus(fmt.Sprintf("Avatar %q carregado do arquivo .save!", filepath.Base(f)))
-				if e.OnAvatarModified != nil {
-					e.OnAvatarModified()
-				}
+		}
+	}
+
+	// 1. If a folder was dropped: build complete avatar from folder!
+	if len(dirList) > 0 {
+		_ = e.CreateAvatarFromDirectory(dirList[0])
+		return
+	}
+
+	// 2. If multiple PNGs were dropped and creating a new avatar:
+	if len(pngList) >= 2 && (e.Avatar == nil || len(e.Avatar.Layers) == 0) {
+		if av, err := model.BuildAvatarFromPNGFiles(pngList); err == nil {
+			targetSave := "assets/samples/novo_avatar.save"
+			e.SetAvatar(av, targetSave)
+			_ = e.TextureCache.LoadAvatarTextures(av)
+			_ = e.SaveCurrentAvatar()
+			e.SetStatus(fmt.Sprintf("Avatar criado com %d camadas a partir das imagens!", len(av.Layers)))
+			if e.OnAvatarModified != nil {
+				e.OnAvatarModified()
+			}
+			return
+		}
+	}
+
+	// 3. If individual PNGs were dropped: add as layers to existing avatar
+	importedCount := 0
+	for _, pngFile := range pngList {
+		if err := e.AddLayerFromPNG(pngFile); err == nil {
+			importedCount++
+		}
+	}
+
+	// 4. If a .save file was dropped: load avatar
+	for _, saveFile := range saveList {
+		if av, err := model.ParseSaveFile(saveFile); err == nil {
+			e.SetAvatar(av, saveFile)
+			_ = e.TextureCache.LoadAvatarTextures(av)
+			e.SetStatus(fmt.Sprintf("Avatar %q carregado do arquivo .save!", filepath.Base(saveFile)))
+			if e.OnAvatarModified != nil {
+				e.OnAvatarModified()
 			}
 		}
 	}

@@ -50,6 +50,8 @@ type UIState struct {
 	OnDeviceSelected        func(deviceName string)
 	OnResetAvatar           func()
 	OnOpenEditor            func()
+	OnCreateNewAvatar       func()
+	OnImportFolderAvatar    func(dirPath string)
 	OnRequestClose          func()
 	OnRequestMinimizeToTray func()
 }
@@ -525,13 +527,14 @@ func (ui *UIState) Draw(
 // -------------------------------------------------------------
 func (ui *UIState) drawAvatarsTab(viewRec rl.Rectangle, cfg *config.Config, mousePos rl.Vector2) {
 	itemH := float32(58)
-	contentH := float32(36) + float32(len(ui.AvailableAvatars))*(itemH+8) + 120
+	avatarCount := float32(len(ui.AvailableAvatars))
+	contentH := float32(40) + avatarCount*(itemH+8) + 400.0
 
 	startY := ui.BeginScrollView(viewRec, contentH)
 	curY := startY
 
 	// Section Title
-	ui.DrawTextBold("Avatares Disponíveis (.save)", int32(viewRec.X)+4, int32(curY), 14, ColSkyBlue)
+	ui.DrawTextBold("Avatares Salvos (.save)", int32(viewRec.X)+4, int32(curY), 14, ColSkyBlue)
 	ui.DrawBadge(viewRec.X+viewRec.Width-75, curY-1, fmt.Sprintf("%d arqs", len(ui.AvailableAvatars)), ColCardBg, ColTextMuted)
 	curY += 28
 
@@ -576,21 +579,68 @@ func (ui *UIState) drawAvatarsTab(viewRec rl.Rectangle, cfg *config.Config, mous
 		curY += itemH + 8
 	}
 
-	curY += 8
+	curY += 12
 
-	// Action Card 1: Abrir no Editor Visual
+	// Section 2: Criar e Importar Novos Personagens
+	ui.DrawTextBold("Criar / Importar Novo Personagem", int32(viewRec.X)+4, int32(curY), 14, ColSkyBlue)
+	curY += 26
+
+	// Action Card 1: Criar Novo Avatar em Branco
+	newRec := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 50)
+	hoveredNew := rl.CheckCollisionPointRec(mousePos, newRec)
+	DrawCard(newRec, hoveredNew, false)
+	ui.DrawIconBadge(newRec.X+8, newRec.Y+8, 34, IconAdd, ColLime, ColIconBoxBg)
+	ui.DrawTextBold("Criar Novo Avatar (Tela em Branco)", int32(newRec.X)+52, int32(newRec.Y)+10, 13, ColTextTitle)
+	ui.DrawText("Inicia um projeto limpo no editor visual", int32(newRec.X)+52, int32(newRec.Y)+28, 11, ColTextMuted)
+	if hoveredNew && rl.IsMouseButtonPressed(rl.MouseLeftButton) && ui.OnCreateNewAvatar != nil {
+		ui.OnCreateNewAvatar()
+	}
+
+	curY += 58
+
+	// Action Card 2: Importar Pasta de PNGs (ex: SlugcatPNGs)
+	importRec := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 50)
+	hoveredImport := rl.CheckCollisionPointRec(mousePos, importRec)
+	DrawCard(importRec, hoveredImport, false)
+	ui.DrawIconBadge(importRec.X+8, importRec.Y+8, 34, IconPNGFile, ColSkyBlue, ColIconBoxBg)
+	ui.DrawTextBold("Importar Pasta com Sprites PNG", int32(importRec.X)+52, int32(importRec.Y)+10, 13, ColTextTitle)
+	ui.DrawText("Cria avatares 4-estados automaticamente de uma pasta", int32(importRec.X)+52, int32(importRec.Y)+28, 11, ColTextMuted)
+	if hoveredImport && rl.IsMouseButtonPressed(rl.MouseLeftButton) {
+		slugcatDir := "assets/samples/SlugcatPNGs"
+		if _, err := os.Stat(slugcatDir); err == nil && ui.OnImportFolderAvatar != nil {
+			ui.OnImportFolderAvatar(slugcatDir)
+		} else if ui.OnOpenEditor != nil {
+			ui.OnOpenEditor()
+		}
+	}
+
+	curY += 58
+
+	// Action Card 3: Abrir no Editor Visual
 	editRec := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 46)
 	hoveredEdit := rl.CheckCollisionPointRec(mousePos, editRec)
 	DrawCard(editRec, hoveredEdit, false)
-	ui.DrawIconBadge(editRec.X+8, editRec.Y+7, 32, IconEditor, ColSkyBlue, ColIconBoxBg)
-	ui.DrawTextBold("Abrir Avatar no Editor Visual", int32(editRec.X)+48, int32(editRec.Y)+14, 13, ColTextTitle)
+	ui.DrawIconBadge(editRec.X+8, editRec.Y+7, 32, IconEditor, ColLavender, ColIconBoxBg)
+	ui.DrawTextBold("Abrir Avatar Ativo no Editor Visual", int32(editRec.X)+48, int32(editRec.Y)+14, 13, ColTextTitle)
 	if hoveredEdit && rl.IsMouseButtonPressed(rl.MouseLeftButton) && ui.OnOpenEditor != nil {
 		ui.OnOpenEditor()
 	}
 
 	curY += 54
 
-	// Action Card 2: Recarregar Lista
+	// Section 3: Orientação e Exibição do Avatar
+	ui.DrawTextBold("Orientação e Ajustes de Exibição", int32(viewRec.X)+4, int32(curY), 14, ColSkyBlue)
+	curY += 26
+
+	// Flip Horizontal Toggle Card
+	flipCard := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 52)
+	DrawCard(flipCard, false, false)
+	toggleRec := rl.NewRectangle(flipCard.X+14, flipCard.Y+12, flipCard.Width-28, 28)
+	cfg.FlipHorizontal = ui.DrawToggle(toggleRec, "Inverter Avatar Horizontalmente (Flip H)", cfg.FlipHorizontal, mousePos)
+
+	curY += 60
+
+	// Action Card 4: Recarregar Lista
 	scanRec := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 46)
 	hoveredScan := rl.CheckCollisionPointRec(mousePos, scanRec)
 	DrawCard(scanRec, hoveredScan, false)
@@ -611,7 +661,7 @@ func (ui *UIState) drawAudioTab(viewRec rl.Rectangle, cfg *config.Config, audioE
 	isTalking := audioEngine.IsTalking()
 
 	devCount := len(ui.AudioDevices)
-	contentH := float32(240) + float32(devCount)*48 + 40
+	contentH := float32(310) + float32(devCount)*54 + 50
 
 	startY := ui.BeginScrollView(viewRec, contentH)
 	curY := startY

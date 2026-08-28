@@ -10,6 +10,7 @@ type RenderState struct {
 	Avatar         *model.Avatar
 	Origin         rl.Vector2
 	Scale          float32
+	FlipHorizontal bool
 	GlobalBounceY  float32
 	Costume        int
 	IsBlinking     bool
@@ -38,13 +39,14 @@ func (r *Renderer) Draw(state *RenderState) {
 		return
 	}
 
-	transforms := ComputeWorldTransforms(
+	transforms := ComputeWorldTransformsEx(
 		state.Avatar,
 		state.Origin,
 		state.Scale,
 		state.GlobalBounceY,
 		state.LayerOffsets,
 		state.LayerRotations,
+		state.FlipHorizontal,
 	)
 
 	// Draw layers in sorted ZIndex order
@@ -81,11 +83,16 @@ func (r *Renderer) Draw(state *RenderState) {
 		frameWidth := float32(tex.Width) / float32(frames)
 		frameHeight := float32(tex.Height)
 
-		// Source rectangle inside texture
+		srcW := frameWidth
+		if state.FlipHorizontal {
+			srcW = -frameWidth
+		}
+
+		// Source rectangle inside texture (negative width flips horizontally in Raylib)
 		srcRec := rl.NewRectangle(
 			float32(currentFrame)*frameWidth,
 			0,
-			frameWidth,
+			srcW,
 			frameHeight,
 		)
 
@@ -111,9 +118,13 @@ func (r *Renderer) Draw(state *RenderState) {
 		)
 
 		// Pivot (origin relative to destination top-left).
-		// By default Godot centers sprites at (width/2, height/2) adjusted by layer.Offset
+		offsetX := layer.Offset.X
+		if state.FlipHorizontal {
+			offsetX = -offsetX
+		}
+
 		pivot := rl.Vector2{
-			X: (destWidth * 0.5) - (layer.Offset.X * transform.Scale),
+			X: (destWidth * 0.5) - (offsetX * transform.Scale),
 			Y: (destHeight * 0.5) - (layer.Offset.Y * transform.Scale),
 		}
 
