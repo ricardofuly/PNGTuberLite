@@ -21,6 +21,7 @@ type Config struct {
 	TargetFPS         int32     `json:"targetFPS"`
 	Scale             float32   `json:"scale"`
 	FlipHorizontal    bool      `json:"flipHorizontal"`    // Invert avatar horizontally (mirroring)
+	Language          string    `json:"language"`          // Active UI language ("pt-BR", "en-US", etc.)
 	AvatarRelX        float32   `json:"avatarRelX"`        // Normalized horizontal position (0.0 to 1.0, default 0.5 = center)
 	AvatarRelY        float32   `json:"avatarRelY"`        // Normalized vertical position (0.0 to 1.0, default 0.5 = center)
 	BobbingIntensity  float32   `json:"bobbingIntensity"`  // Floating / idle breathing intensity (0.0 to 2.0, default 0.5)

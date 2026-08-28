@@ -11,6 +11,7 @@ import (
 	"pngtuber-lite/pkg/audio"
 	"pngtuber-lite/pkg/config"
 	"pngtuber-lite/pkg/costume"
+	"pngtuber-lite/pkg/i18n"
 	"pngtuber-lite/pkg/updater"
 	"pngtuber-lite/pkg/window"
 )
@@ -301,8 +302,17 @@ func (ui *UIState) Draw(
 	screenH := float32(rl.GetScreenHeight())
 	mousePos := rl.GetMousePosition()
 
-	// 1. Floating Menu Toggle Button (Pill shaped with generous breathing room)
-	menuBtnRec := rl.NewRectangle(14, 12, 125, 36)
+	// 1. Floating Menu Toggle Button (Dynamically sized with measured text)
+	menuLabel := i18n.T("tab_settings")
+	if ui.IsOpen {
+		menuLabel = i18n.T("btn_close")
+	}
+	menuTextW := ui.MeasureTextBold(menuLabel, 13)
+	menuBtnW := menuTextW + 54
+	if menuBtnW < 125 {
+		menuBtnW = 125
+	}
+	menuBtnRec := rl.NewRectangle(14, 12, menuBtnW, 36)
 	menuHovered := rl.CheckCollisionPointRec(mousePos, menuBtnRec)
 
 	menuBgColor := ColPillBg
@@ -331,14 +341,20 @@ func (ui *UIState) Draw(
 
 	if ui.IsOpen {
 		GlobalIcons.DrawIcon(IconClose, menuBtnRec.X+14, menuBtnRec.Y+9, 18, ColRed)
-		ui.DrawTextBold("FECHAR", int32(menuBtnRec.X)+40, int32(menuBtnRec.Y)+9, 13, ColTextTitle)
+		ui.DrawTextBold(menuLabel, int32(menuBtnRec.X)+40, int32(menuBtnRec.Y)+9, 13, ColTextTitle)
 	} else {
 		GlobalIcons.DrawIcon(IconSettings, menuBtnRec.X+14, menuBtnRec.Y+9, 18, ColSkyBlue)
-		ui.DrawTextBold("CONFIG", int32(menuBtnRec.X)+40, int32(menuBtnRec.Y)+9, 13, ColTextTitle)
+		ui.DrawTextBold(menuLabel, int32(menuBtnRec.X)+40, int32(menuBtnRec.Y)+9, 13, ColTextTitle)
 	}
 
 	// 2. Floating Editor Toggle Button
-	editorBtnRec := rl.NewRectangle(146, 12, 125, 36)
+	editorLabel := "EDITOR"
+	editorTextW := ui.MeasureTextBold(editorLabel, 13)
+	editorBtnW := editorTextW + 54
+	if editorBtnW < 125 {
+		editorBtnW = 125
+	}
+	editorBtnRec := rl.NewRectangle(menuBtnRec.X+menuBtnW+10, 12, editorBtnW, 36)
 	editorHovered := rl.CheckCollisionPointRec(mousePos, editorBtnRec)
 	editorBgColor := ColPillBg
 	editorBorderColor := ColPanelBorder
@@ -353,7 +369,7 @@ func (ui *UIState) Draw(
 	rl.DrawRectangleRounded(editorBtnRec, 0.45, 6, editorBgColor)
 	rl.DrawRectangleRoundedLines(editorBtnRec, 0.45, 6, editorBorderColor)
 	GlobalIcons.DrawIcon(IconEditor, editorBtnRec.X+14, editorBtnRec.Y+9, 18, ColLavender)
-	ui.DrawTextBold("EDITOR", int32(editorBtnRec.X)+40, int32(editorBtnRec.Y)+9, 13, ColTextTitle)
+	ui.DrawTextBold(editorLabel, int32(editorBtnRec.X)+40, int32(editorBtnRec.Y)+9, 13, ColTextTitle)
 
 	// 3. Floating Update Button (Shown when new release/hotfix is available)
 	upState := updater.GetUpdateState()
@@ -367,18 +383,24 @@ func (ui *UIState) Draw(
 	}
 
 	if upState.Available {
-		tag := "Nova Versão"
+		tag := i18n.T("label_new_version")
 		if upState.Latest != nil {
 			tag = upState.Latest.TagName
 		}
-		btnLabel := fmt.Sprintf("ATUALIZAR (%s)", tag)
+		btnLabel := fmt.Sprintf(i18n.T("btn_update_badge"), tag)
 		if upState.IsUpdating {
-			btnLabel = fmt.Sprintf("Baixando... %d%%", int(upState.Progress*100))
+			btnLabel = fmt.Sprintf("%s %d%%", i18n.T("status_downloading"), int(upState.Progress*100))
 		} else if upState.Success {
-			btnLabel = fmt.Sprintf("Reiniciando (%.0fs)", upState.RestartCountdown)
+			btnLabel = fmt.Sprintf(i18n.T("status_restarting"), upState.RestartCountdown)
 		}
 
-		upBtnRec := rl.NewRectangle(278, 12, 230, 36)
+		upTextW := ui.MeasureTextBold(btnLabel, 12.5)
+		upBtnW := upTextW + 54
+		if upBtnW < 220 {
+			upBtnW = 220
+		}
+
+		upBtnRec := rl.NewRectangle(editorBtnRec.X+editorBtnW+10, 12, upBtnW, 36)
 		upHovered := rl.CheckCollisionPointRec(mousePos, upBtnRec)
 		upBgColor := rl.NewColor(24, 75, 45, 235)
 		if upHovered {
@@ -411,7 +433,7 @@ func (ui *UIState) Draw(
 
 	// 4. Main Control Drawer Panel
 	if ui.IsOpen {
-		panelW := float32(500)
+		panelW := float32(520)
 		panelH := screenH - 68
 		if panelH > 640 {
 			panelH = 640
@@ -429,7 +451,7 @@ func (ui *UIState) Draw(
 		headerRec := rl.NewRectangle(panelRec.X+14, panelRec.Y+12, panelRec.Width-28, 44)
 		ui.DrawIconBadge(headerRec.X+4, headerRec.Y+4, 36, IconSettings, ColSkyBlue, ColIconBoxBg)
 		ui.DrawTextBold("PNGTuber Lite", int32(headerRec.X)+50, int32(headerRec.Y)+6, 16, ColTextTitle)
-		ui.DrawText("Painel de Controle e Ajustes", int32(headerRec.X)+50, int32(headerRec.Y)+25, 12, ColTextMuted)
+		ui.DrawText(i18n.T("header_subtitle"), int32(headerRec.X)+50, int32(headerRec.Y)+25, 12, ColTextMuted)
 
 		// Close 'X' button
 		closeHeaderRec := rl.NewRectangle(panelRec.X+panelRec.Width-42, panelRec.Y+18, 28, 28)
@@ -447,12 +469,12 @@ func (ui *UIState) Draw(
 			name string
 			icon int
 		}{
-			{TabAvatars, "Avatar", IconAvatar},
-			{TabAudio, "Áudio", IconAudio},
-			{TabCostumes, "Roupas", IconCostumes},
-			{TabPhysics, "Física", IconPhysics},
-			{TabKeybinds, "Teclas", IconKeys},
-			{TabOBS, "OBS", IconOBS},
+			{TabAvatars, i18n.T("tab_avatars"), IconAvatar},
+			{TabAudio, i18n.T("tab_audio"), IconAudio},
+			{TabCostumes, i18n.T("tab_costumes"), IconCostumes},
+			{TabPhysics, i18n.T("tab_physics"), IconPhysics},
+			{TabKeybinds, i18n.T("tab_keybinds"), IconKeys},
+			{TabOBS, i18n.T("tab_obs"), IconOBS},
 		}
 
 		tabBarRec := rl.NewRectangle(panelRec.X+14, panelRec.Y+62, panelRec.Width-28, 36)
@@ -460,7 +482,7 @@ func (ui *UIState) Draw(
 
 		tabW := tabBarRec.Width / float32(len(tabs))
 		for i, t := range tabs {
-			tabRec := rl.NewRectangle(tabBarRec.X+float32(i)*tabW+2, tabBarRec.Y+2, tabW-4, tabBarRec.Height-4)
+			tabRec := rl.NewRectangle(tabBarRec.X+float32(i)*tabW+1, tabBarRec.Y+2, tabW-2, tabBarRec.Height-4)
 			isActive := (ui.CurrentTab == t.id)
 			isHovered := rl.CheckCollisionPointRec(mousePos, tabRec)
 
@@ -487,13 +509,21 @@ func (ui *UIState) Draw(
 				rl.DrawRectangleRounded(tabRec, 0.4, 4, tabBg)
 			}
 
+			fontSize := float32(11)
+			textW := ui.MeasureTextBold(t.name, fontSize)
 			iconW := float32(16)
-			textW := ui.MeasureTextBold(t.name, 11)
+			if iconW+textW+6 > tabRec.Width-4 {
+				fontSize = 9.5
+				textW = ui.MeasureTextBold(t.name, fontSize)
+			}
 			totalW := iconW + 4 + textW
 			startX := tabRec.X + (tabRec.Width-totalW)/2
+			if startX < tabRec.X+2 {
+				startX = tabRec.X + 2
+			}
 
 			GlobalIcons.DrawIcon(t.icon, startX, tabRec.Y+8, 16, iconColor)
-			ui.DrawTextBold(t.name, int32(startX+iconW+4), int32(tabRec.Y)+9, 11, textColor)
+			ui.DrawTextBold(t.name, int32(startX+iconW+4), int32(tabRec.Y)+9, fontSize, textColor)
 		}
 
 		// Scrollable Content Viewport
@@ -528,20 +558,63 @@ func (ui *UIState) Draw(
 func (ui *UIState) drawAvatarsTab(viewRec rl.Rectangle, cfg *config.Config, mousePos rl.Vector2) {
 	itemH := float32(58)
 	avatarCount := float32(len(ui.AvailableAvatars))
-	contentH := float32(40) + avatarCount*(itemH+8) + 400.0
+	cardW := viewRec.Width - 18
+
+	availLangs := i18n.GetAvailableLanguages()
+	pillH := float32(30)
+	pillGap := float32(8)
+
+	// Calculate layout of language pills
+	type langPillLayout struct {
+		meta i18n.LanguageMeta
+		text string
+		w    float32
+		x    float32
+		y    float32
+	}
+	var layouts []langPillLayout
+	curX := float32(52)
+	curRowY := float32(46)
+	maxX := cardW - 12
+
+	for _, lang := range availLangs {
+		displayText := fmt.Sprintf("%s %s", lang.Flag, lang.Name)
+		textW := ui.MeasureTextBold(displayText, 11)
+		pW := textW + 24
+		if pW < 120 {
+			pW = 120
+		}
+
+		if curX+pW > maxX && curX > 52 {
+			curX = 52
+			curRowY += pillH + 8
+		}
+
+		layouts = append(layouts, langPillLayout{
+			meta: lang,
+			text: displayText,
+			w:    pW,
+			x:    curX,
+			y:    curRowY,
+		})
+		curX += pW + pillGap
+	}
+
+	cardH := curRowY + pillH + 14
+	contentH := float32(440) + avatarCount*(itemH+8) + cardH
 
 	startY := ui.BeginScrollView(viewRec, contentH)
 	curY := startY
 
 	// Section Title
-	ui.DrawTextBold("Avatares Salvos (.save)", int32(viewRec.X)+4, int32(curY), 14, ColSkyBlue)
-	ui.DrawBadge(viewRec.X+viewRec.Width-75, curY-1, fmt.Sprintf("%d arqs", len(ui.AvailableAvatars)), ColCardBg, ColTextMuted)
+	ui.DrawTextBold(i18n.T("label_available_avatars"), int32(viewRec.X)+4, int32(curY), 14, ColSkyBlue)
+	ui.DrawBadge(viewRec.X+cardW-65, curY-1, fmt.Sprintf("%d arqs", len(ui.AvailableAvatars)), ColCardBg, ColTextMuted)
 	curY += 28
 
 	// Avatar Cards List
 	for _, avatarPath := range ui.AvailableAvatars {
 		isCurrent := (cfg.AvatarPath == avatarPath)
-		cardRec := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, itemH)
+		cardRec := rl.NewRectangle(viewRec.X+2, curY, cardW, itemH)
 		hovered := rl.CheckCollisionPointRec(mousePos, cardRec)
 
 		DrawCard(cardRec, hovered, isCurrent)
@@ -559,15 +632,15 @@ func (ui *UIState) drawAvatarsTab(viewRec rl.Rectangle, cfg *config.Config, mous
 
 		dirInfo := filepath.Dir(avatarPath)
 		if dirInfo == "." {
-			dirInfo = "Pasta principal"
+			dirInfo = "assets"
 		}
 		ui.DrawText(dirInfo, int32(cardRec.X)+58, int32(cardRec.Y)+32, 11.5, ColTextMuted)
 
 		// Status Badge
 		if isCurrent {
-			ui.DrawBadge(cardRec.X+cardRec.Width-80, cardRec.Y+18, "✓ Ativo", rl.NewColor(24, 85, 48, 255), ColLime)
+			ui.DrawBadge(cardRec.X+cardRec.Width-80, cardRec.Y+18, i18n.T("status_active"), rl.NewColor(24, 85, 48, 255), ColLime)
 		} else if hovered {
-			ui.DrawBadge(cardRec.X+cardRec.Width-92, cardRec.Y+18, "Carregar", ColCardHover, ColSkyBlue)
+			ui.DrawBadge(cardRec.X+cardRec.Width-92, cardRec.Y+18, i18n.T("btn_load"), ColCardHover, ColSkyBlue)
 		}
 
 		if hovered && rl.IsMouseButtonPressed(rl.MouseLeftButton) {
@@ -582,29 +655,29 @@ func (ui *UIState) drawAvatarsTab(viewRec rl.Rectangle, cfg *config.Config, mous
 	curY += 12
 
 	// Section 2: Criar e Importar Novos Personagens
-	ui.DrawTextBold("Criar / Importar Novo Personagem", int32(viewRec.X)+4, int32(curY), 14, ColSkyBlue)
+	ui.DrawTextBold(i18n.T("section_create_import"), int32(viewRec.X)+4, int32(curY), 14, ColSkyBlue)
 	curY += 26
 
 	// Action Card 1: Criar Novo Avatar em Branco
-	newRec := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 50)
+	newRec := rl.NewRectangle(viewRec.X+2, curY, cardW, 50)
 	hoveredNew := rl.CheckCollisionPointRec(mousePos, newRec)
 	DrawCard(newRec, hoveredNew, false)
 	ui.DrawIconBadge(newRec.X+8, newRec.Y+8, 34, IconAdd, ColLime, ColIconBoxBg)
-	ui.DrawTextBold("Criar Novo Avatar (Tela em Branco)", int32(newRec.X)+52, int32(newRec.Y)+10, 13, ColTextTitle)
-	ui.DrawText("Inicia um projeto limpo no editor visual", int32(newRec.X)+52, int32(newRec.Y)+28, 11, ColTextMuted)
+	ui.DrawTextBold(i18n.T("btn_new_avatar"), int32(newRec.X)+52, int32(newRec.Y)+10, 13, ColTextTitle)
+	ui.DrawText(i18n.T("btn_new_avatar_desc"), int32(newRec.X)+52, int32(newRec.Y)+28, 11, ColTextMuted)
 	if hoveredNew && rl.IsMouseButtonPressed(rl.MouseLeftButton) && ui.OnCreateNewAvatar != nil {
 		ui.OnCreateNewAvatar()
 	}
 
 	curY += 58
 
-	// Action Card 2: Importar Pasta de PNGs (ex: SlugcatPNGs)
-	importRec := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 50)
+	// Action Card 2: Importar Pasta de PNGs
+	importRec := rl.NewRectangle(viewRec.X+2, curY, cardW, 50)
 	hoveredImport := rl.CheckCollisionPointRec(mousePos, importRec)
 	DrawCard(importRec, hoveredImport, false)
 	ui.DrawIconBadge(importRec.X+8, importRec.Y+8, 34, IconPNGFile, ColSkyBlue, ColIconBoxBg)
-	ui.DrawTextBold("Importar Pasta com Sprites PNG", int32(importRec.X)+52, int32(importRec.Y)+10, 13, ColTextTitle)
-	ui.DrawText("Cria avatares 4-estados automaticamente de uma pasta", int32(importRec.X)+52, int32(importRec.Y)+28, 11, ColTextMuted)
+	ui.DrawTextBold(i18n.T("btn_import_folder"), int32(importRec.X)+52, int32(importRec.Y)+10, 13, ColTextTitle)
+	ui.DrawText(i18n.T("btn_import_folder_desc"), int32(importRec.X)+52, int32(importRec.Y)+28, 11, ColTextMuted)
 	if hoveredImport && rl.IsMouseButtonPressed(rl.MouseLeftButton) {
 		slugcatDir := "assets/samples/SlugcatPNGs"
 		if _, err := os.Stat(slugcatDir); err == nil && ui.OnImportFolderAvatar != nil {
@@ -617,35 +690,72 @@ func (ui *UIState) drawAvatarsTab(viewRec rl.Rectangle, cfg *config.Config, mous
 	curY += 58
 
 	// Action Card 3: Abrir no Editor Visual
-	editRec := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 46)
+	editRec := rl.NewRectangle(viewRec.X+2, curY, cardW, 46)
 	hoveredEdit := rl.CheckCollisionPointRec(mousePos, editRec)
 	DrawCard(editRec, hoveredEdit, false)
 	ui.DrawIconBadge(editRec.X+8, editRec.Y+7, 32, IconEditor, ColLavender, ColIconBoxBg)
-	ui.DrawTextBold("Abrir Avatar Ativo no Editor Visual", int32(editRec.X)+48, int32(editRec.Y)+14, 13, ColTextTitle)
+	ui.DrawTextBold(i18n.T("btn_open_editor"), int32(editRec.X)+48, int32(editRec.Y)+14, 13, ColTextTitle)
 	if hoveredEdit && rl.IsMouseButtonPressed(rl.MouseLeftButton) && ui.OnOpenEditor != nil {
 		ui.OnOpenEditor()
 	}
 
 	curY += 54
 
-	// Section 3: Orientação e Exibição do Avatar
-	ui.DrawTextBold("Orientação e Ajustes de Exibição", int32(viewRec.X)+4, int32(curY), 14, ColSkyBlue)
+	// Section 3: Idioma & Orientação
+	ui.DrawTextBold(i18n.T("label_language"), int32(viewRec.X)+4, int32(curY), 14, ColSkyBlue)
 	curY += 26
 
+	// Language Selection Card
+	langCard := rl.NewRectangle(viewRec.X+2, curY, cardW, cardH)
+	DrawCard(langCard, false, false)
+	ui.DrawIconBadge(langCard.X+8, langCard.Y+8, 34, IconLanguage, ColSkyBlue, ColIconBoxBg)
+	ui.DrawTextBold(i18n.T("label_language"), int32(langCard.X)+52, int32(langCard.Y)+10, 13, ColTextTitle)
+	ui.DrawText(i18n.T("label_language_desc"), int32(langCard.X)+52, int32(langCard.Y)+28, 11, ColTextMuted)
+
+	for _, p := range layouts {
+		pillRec := rl.NewRectangle(langCard.X+p.x, langCard.Y+p.y, p.w, pillH)
+		isLangActive := (i18n.GetLanguage() == p.meta.Code)
+		pillHover := rl.CheckCollisionPointRec(mousePos, pillRec)
+
+		pillBg := ColPillBg
+		pillTextCol := ColTextMuted
+		if isLangActive {
+			pillBg = ColCardActive
+			pillTextCol = ColSkyBlue
+		} else if pillHover {
+			pillBg = ColCardHover
+			pillTextCol = ColWhite
+		}
+
+		rl.DrawRectangleRounded(pillRec, 0.45, 4, pillBg)
+		if isLangActive {
+			rl.DrawRectangleRoundedLines(pillRec, 0.45, 4, ColSkyBlue)
+		}
+
+		tW := ui.MeasureTextBold(p.text, 11)
+		ui.DrawTextBold(p.text, int32(pillRec.X)+int32(p.w/2)-int32(tW/2), int32(pillRec.Y)+8, 11, pillTextCol)
+
+		if pillHover && rl.IsMouseButtonPressed(rl.MouseLeftButton) {
+			i18n.SetLanguage(p.meta.Code)
+			cfg.Language = p.meta.Code
+		}
+	}
+	curY += cardH + 10
+
 	// Flip Horizontal Toggle Card
-	flipCard := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 52)
+	flipCard := rl.NewRectangle(viewRec.X+2, curY, cardW, 52)
 	DrawCard(flipCard, false, false)
 	toggleRec := rl.NewRectangle(flipCard.X+14, flipCard.Y+12, flipCard.Width-28, 28)
-	cfg.FlipHorizontal = ui.DrawToggle(toggleRec, "Inverter Avatar Horizontalmente (Flip H)", cfg.FlipHorizontal, mousePos)
+	cfg.FlipHorizontal = ui.DrawToggle(toggleRec, i18n.T("label_flip_horizontal"), cfg.FlipHorizontal, mousePos)
 
 	curY += 60
 
 	// Action Card 4: Recarregar Lista
-	scanRec := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 46)
+	scanRec := rl.NewRectangle(viewRec.X+2, curY, cardW, 46)
 	hoveredScan := rl.CheckCollisionPointRec(mousePos, scanRec)
 	DrawCard(scanRec, hoveredScan, false)
 	ui.DrawIconBadge(scanRec.X+8, scanRec.Y+7, 32, IconRestart, ColLavender, ColIconBoxBg)
-	ui.DrawTextBold("Escanear Pasta por Novos .save", int32(scanRec.X)+48, int32(scanRec.Y)+14, 13, ColTextTitle)
+	ui.DrawTextBold(i18n.T("btn_scan_folders"), int32(scanRec.X)+48, int32(scanRec.Y)+14, 13, ColTextTitle)
 	if hoveredScan && rl.IsMouseButtonPressed(rl.MouseLeftButton) {
 		ui.ScanAvatars()
 	}
@@ -659,28 +769,29 @@ func (ui *UIState) drawAvatarsTab(viewRec rl.Rectangle, cfg *config.Config, mous
 func (ui *UIState) drawAudioTab(viewRec rl.Rectangle, cfg *config.Config, audioEngine *audio.CaptureEngine, mousePos rl.Vector2) {
 	vol := audioEngine.GetVolume()
 	isTalking := audioEngine.IsTalking()
+	cardW := viewRec.Width - 18
 
 	devCount := len(ui.AudioDevices)
-	contentH := float32(310) + float32(devCount)*54 + 50
+	contentH := float32(330) + float32(devCount)*54 + 60
 
 	startY := ui.BeginScrollView(viewRec, contentH)
 	curY := startY
 
 	// Card 1: Live VU Meter & Status
-	vuCard := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 116)
+	vuCard := rl.NewRectangle(viewRec.X+2, curY, cardW, 116)
 	DrawCard(vuCard, false, false)
 
-	ui.DrawTextBold("Monitor de Volume (VAD)", int32(vuCard.X)+14, int32(vuCard.Y)+12, 14, ColSkyBlue)
+	ui.DrawTextBold(i18n.T("label_audio_live"), int32(vuCard.X)+14, int32(vuCard.Y)+12, 14, ColSkyBlue)
 
-	statusText := "🤫 Silêncio (Boca Fechada)"
+	statusText := i18n.T("label_status_silent")
 	statusCol := ColTextMuted
 	statusBg := ColIconBoxBg
 	if isTalking {
-		statusText = "🗣 Falando (Boca Aberta)"
+		statusText = i18n.T("label_status_speaking")
 		statusCol = ColLime
 		statusBg = rl.NewColor(24, 85, 48, 255)
 	}
-	ui.DrawBadge(vuCard.X+vuCard.Width-195, vuCard.Y+10, statusText, statusBg, statusCol)
+	ui.DrawBadge(vuCard.X+cardW-195, vuCard.Y+10, statusText, statusBg, statusCol)
 
 	// Level Bar
 	barW := vuCard.Width - 28
@@ -707,16 +818,16 @@ func (ui *UIState) drawAudioTab(viewRec rl.Rectangle, cfg *config.Config, audioE
 	rl.DrawLineEx(rl.NewVector2(threshX, barRec.Y-3), rl.NewVector2(threshX, barRec.Y+barRec.Height+3), 2.5, ColRed)
 
 	ui.DrawText(fmt.Sprintf("Volume RMS: %.4f", vol), int32(vuCard.X)+14, int32(vuCard.Y)+78, 12, ColTextBody)
-	ui.DrawText(fmt.Sprintf("Corte: %.4f", cfg.AudioThreshold), int32(vuCard.X+vuCard.Width)-115, int32(vuCard.Y)+78, 12, ColYellow)
+	ui.DrawText(fmt.Sprintf("VAD: %.4f", cfg.AudioThreshold), int32(vuCard.X+cardW)-115, int32(vuCard.Y)+78, 12, ColYellow)
 
 	curY += 128
 
 	// Card 2: Sensibilidade Slider
-	sensCard := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 90)
+	sensCard := rl.NewRectangle(viewRec.X+2, curY, cardW, 90)
 	DrawCard(sensCard, false, false)
 
-	ui.DrawTextBold("Sensibilidade do Microfone", int32(sensCard.X)+14, int32(sensCard.Y)+12, 14, ColSkyBlue)
-	ui.DrawText("Arraste para que a barra passe da linha vermelha ao falar", int32(sensCard.X)+14, int32(sensCard.Y)+34, 11.5, ColTextMuted)
+	ui.DrawTextBold(i18n.T("label_vad_threshold"), int32(sensCard.X)+14, int32(sensCard.Y)+12, 14, ColSkyBlue)
+	ui.DrawText(i18n.T("label_vad_desc"), int32(sensCard.X)+14, int32(sensCard.Y)+34, 11.5, ColTextMuted)
 
 	sliderTrack := rl.NewRectangle(sensCard.X+14, sensCard.Y+58, sensCard.Width-28, 12)
 	newSens := ui.DrawSliderControl(sliderTrack, cfg.AudioThreshold, 0.002, 0.12, mousePos, ColSkyBlue)
@@ -728,19 +839,19 @@ func (ui *UIState) drawAudioTab(viewRec rl.Rectangle, cfg *config.Config, audioE
 	curY += 102
 
 	// Card 3: Dispositivos de Entrada
-	ui.DrawTextBold("Dispositivos de Entrada (Microfones / DSP)", int32(viewRec.X)+4, int32(curY), 14, ColSkyBlue)
-	ui.DrawBadge(viewRec.X+viewRec.Width-75, curY-1, fmt.Sprintf("%d devs", devCount), ColCardBg, ColTextMuted)
+	ui.DrawTextBold(i18n.T("label_audio_device"), int32(viewRec.X)+4, int32(curY), 14, ColSkyBlue)
+	ui.DrawBadge(viewRec.X+cardW-65, curY-1, fmt.Sprintf("%d devs", devCount), ColCardBg, ColTextMuted)
 	curY += 28
 
 	if devCount == 0 {
-		devCard := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 44)
+		devCard := rl.NewRectangle(viewRec.X+2, curY, cardW, 44)
 		DrawCard(devCard, false, false)
 		ui.DrawIconBadge(devCard.X+8, devCard.Y+6, 32, IconAudio, ColSkyBlue, ColIconBoxBg)
-		ui.DrawText("Dispositivo Padrão do Sistema Operacional", int32(devCard.X)+48, int32(devCard.Y)+13, 12, ColTextBody)
+		ui.DrawText(i18n.T("label_system_default"), int32(devCard.X)+48, int32(devCard.Y)+13, 12, ColTextBody)
 	} else {
 		for i, devName := range ui.AudioDevices {
 			isCurrent := (cfg.AudioDevice == devName || (cfg.AudioDevice == "" && i == 0))
-			devCard := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 44)
+			devCard := rl.NewRectangle(viewRec.X+2, curY, cardW, 44)
 			hovered := rl.CheckCollisionPointRec(mousePos, devCard)
 
 			DrawCard(devCard, hovered, isCurrent)
@@ -774,13 +885,14 @@ func (ui *UIState) drawAudioTab(viewRec rl.Rectangle, cfg *config.Config, audioE
 // TAB 3: ROUPAS (FIGURINOS)
 // -------------------------------------------------------------
 func (ui *UIState) drawCostumesTab(viewRec rl.Rectangle, cfg *config.Config, costumeMgr *costume.CostumeManager, mousePos rl.Vector2) {
-	contentH := float32(360)
+	cardWFull := viewRec.Width - 18
+	contentH := float32(380)
 	startY := ui.BeginScrollView(viewRec, contentH)
 	curY := startY
 
 	// Section Title
-	ui.DrawTextBold("Figurinos do Avatar (Slots 1 a 10)", int32(viewRec.X)+4, int32(curY), 14, ColSkyBlue)
-	ui.DrawText("Pressione as teclas 1 a 0 ou clique nos cards para trocar de roupa", int32(viewRec.X)+4, int32(curY)+22, 11.5, ColTextMuted)
+	ui.DrawTextBold(i18n.T("label_costumes_title"), int32(viewRec.X)+4, int32(curY), 14, ColSkyBlue)
+	ui.DrawText(i18n.T("costumes_hint"), int32(viewRec.X)+4, int32(curY)+22, 11.5, ColTextMuted)
 	curY += 46
 
 	activeCostume := costumeMgr.GetCostume()
@@ -788,7 +900,7 @@ func (ui *UIState) drawCostumesTab(viewRec rl.Rectangle, cfg *config.Config, cos
 	// Grid: 2 rows of 5 cards
 	gridCols := 5
 	cardGap := float32(8)
-	cardW := (viewRec.Width - 16 - float32(gridCols-1)*cardGap) / float32(gridCols)
+	cardW := (cardWFull - float32(gridCols-1)*cardGap) / float32(gridCols)
 	cardH := float32(60)
 
 	for i := 1; i <= 10; i++ {
@@ -811,7 +923,7 @@ func (ui *UIState) drawCostumesTab(viewRec rl.Rectangle, cfg *config.Config, cos
 			numCol = ColLime
 		}
 		ui.DrawTextBold(numStr, int32(cardRec.X)+int32(cardW/2)-int32(ui.MeasureTextBold(numStr, 17)/2), int32(cardRec.Y)+10, 17, numCol)
-		ui.DrawText("Slot", int32(cardRec.X)+int32(cardW/2)-int32(ui.MeasureText("Slot", 11)/2), int32(cardRec.Y)+34, 11, ColTextMuted)
+		ui.DrawText(i18n.T("label_costume_slot"), int32(cardRec.X)+int32(cardW/2)-int32(ui.MeasureText(i18n.T("label_costume_slot"), 11)/2), int32(cardRec.Y)+34, 11, ColTextMuted)
 
 		if hovered && rl.IsMouseButtonPressed(rl.MouseLeftButton) {
 			costumeMgr.SetCostume(i)
@@ -821,11 +933,11 @@ func (ui *UIState) drawCostumesTab(viewRec rl.Rectangle, cfg *config.Config, cos
 	curY += (cardH+cardGap)*2 + 22
 
 	// Bounce on Costume Change Toggle Card
-	bounceCard := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 52)
+	bounceCard := rl.NewRectangle(viewRec.X+2, curY, cardWFull, 52)
 	DrawCard(bounceCard, false, false)
 
 	toggleRec := rl.NewRectangle(bounceCard.X+14, bounceCard.Y+12, bounceCard.Width-28, 28)
-	newBounce := ui.DrawToggle(toggleRec, "Efeito de Pulo (Bounce) ao trocar de figurino", cfg.BounceOnCostume, mousePos)
+	newBounce := ui.DrawToggle(toggleRec, i18n.T("label_bounce_on_costume"), cfg.BounceOnCostume, mousePos)
 	if newBounce != cfg.BounceOnCostume {
 		cfg.BounceOnCostume = newBounce
 		costumeMgr.BounceOnChange = newBounce
@@ -838,46 +950,47 @@ func (ui *UIState) drawCostumesTab(viewRec rl.Rectangle, cfg *config.Config, cos
 // TAB 4: FÍSICA & ANIMAÇÃO
 // -------------------------------------------------------------
 func (ui *UIState) drawPhysicsTab(viewRec rl.Rectangle, cfg *config.Config, mousePos rl.Vector2) {
-	contentH := float32(460)
+	cardW := viewRec.Width - 18
+	contentH := float32(500)
 	startY := ui.BeginScrollView(viewRec, contentH)
 	curY := startY
 
 	// Card 1: Flutuação / Respiração (Bobbing)
-	bobCard := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 80)
+	bobCard := rl.NewRectangle(viewRec.X+2, curY, cardW, 80)
 	DrawCard(bobCard, false, false)
-	ui.DrawTextBold("Flutuação / Respiração (Idle Bobbing)", int32(bobCard.X)+14, int32(bobCard.Y)+12, 13, ColSkyBlue)
-	ui.DrawBadge(bobCard.X+bobCard.Width-70, bobCard.Y+10, fmt.Sprintf("%.2fx", cfg.BobbingIntensity), ColIconBoxBg, ColYellow)
+	ui.DrawTextBold(i18n.T("label_bobbing_intensity"), int32(bobCard.X)+14, int32(bobCard.Y)+12, 13, ColSkyBlue)
+	ui.DrawBadge(bobCard.X+cardW-65, bobCard.Y+10, fmt.Sprintf("%.2fx", cfg.BobbingIntensity), ColIconBoxBg, ColYellow)
 	bobTrack := rl.NewRectangle(bobCard.X+14, bobCard.Y+46, bobCard.Width-28, 12)
 	cfg.BobbingIntensity = ui.DrawSliderControl(bobTrack, cfg.BobbingIntensity, 0.0, 2.0, mousePos, ColSkyBlue)
 	curY += 92
 
 	// Card 2: Inércia / Wobble
-	wobCard := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 80)
+	wobCard := rl.NewRectangle(viewRec.X+2, curY, cardW, 80)
 	DrawCard(wobCard, false, false)
-	ui.DrawTextBold("Inércia e Amortecimento (Wobble)", int32(wobCard.X)+14, int32(wobCard.Y)+12, 13, ColSkyBlue)
-	ui.DrawBadge(wobCard.X+wobCard.Width-70, wobCard.Y+10, fmt.Sprintf("%.2fx", cfg.WobbleIntensity), ColIconBoxBg, ColYellow)
+	ui.DrawTextBold(i18n.T("label_wobble_intensity"), int32(wobCard.X)+14, int32(wobCard.Y)+12, 13, ColSkyBlue)
+	ui.DrawBadge(wobCard.X+cardW-65, wobCard.Y+10, fmt.Sprintf("%.2fx", cfg.WobbleIntensity), ColIconBoxBg, ColYellow)
 	wobTrack := rl.NewRectangle(wobCard.X+14, wobCard.Y+46, wobCard.Width-28, 12)
 	cfg.WobbleIntensity = ui.DrawSliderControl(wobTrack, cfg.WobbleIntensity, 0.0, 2.0, mousePos, ColSkyBlue)
 	curY += 92
 
 	// Card 3: Salto ao Falar (Bounce & Gravidade)
-	bounceCard := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 135)
+	bounceCard := rl.NewRectangle(viewRec.X+2, curY, cardW, 135)
 	DrawCard(bounceCard, false, false)
-	ui.DrawTextBold("Salto ao Falar (Bounce)", int32(bounceCard.X)+14, int32(bounceCard.Y)+12, 13, ColSkyBlue)
-	ui.DrawText(fmt.Sprintf("Força: %.0f", cfg.BounceStrength), int32(bounceCard.X)+14, int32(bounceCard.Y)+34, 11.5, ColTextMuted)
+	ui.DrawTextBold(i18n.T("label_physics_title"), int32(bounceCard.X)+14, int32(bounceCard.Y)+12, 13, ColSkyBlue)
+	ui.DrawText(fmt.Sprintf("%s: %.0f", i18n.T("label_bounce_strength"), cfg.BounceStrength), int32(bounceCard.X)+14, int32(bounceCard.Y)+34, 11.5, ColTextMuted)
 	bTrack := rl.NewRectangle(bounceCard.X+14, bounceCard.Y+52, bounceCard.Width-28, 10)
 	cfg.BounceStrength = ui.DrawSliderControl(bTrack, cfg.BounceStrength, 50.0, 600.0, mousePos, ColSkyBlue)
 
-	ui.DrawText(fmt.Sprintf("Gravidade: %.0f", cfg.BounceGravity), int32(bounceCard.X)+14, int32(bounceCard.Y)+80, 11.5, ColTextMuted)
+	ui.DrawText(fmt.Sprintf("%s: %.0f", i18n.T("label_bounce_gravity"), cfg.BounceGravity), int32(bounceCard.X)+14, int32(bounceCard.Y)+80, 11.5, ColTextMuted)
 	gTrack := rl.NewRectangle(bounceCard.X+14, bounceCard.Y+98, bounceCard.Width-28, 10)
 	cfg.BounceGravity = ui.DrawSliderControl(gTrack, cfg.BounceGravity, 200.0, 2000.0, mousePos, ColSkyBlue)
 	curY += 147
 
 	// Card 4: Piscar dos Olhos (Blink)
-	blinkCard := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 80)
+	blinkCard := rl.NewRectangle(viewRec.X+2, curY, cardW, 80)
 	DrawCard(blinkCard, false, false)
-	ui.DrawTextBold("Duração do Piscar (Blink)", int32(blinkCard.X)+14, int32(blinkCard.Y)+12, 13, ColSkyBlue)
-	ui.DrawBadge(blinkCard.X+blinkCard.Width-70, blinkCard.Y+10, fmt.Sprintf("%.2fx", cfg.BlinkSpeed), ColIconBoxBg, ColYellow)
+	ui.DrawTextBold(i18n.T("label_blink_speed"), int32(blinkCard.X)+14, int32(blinkCard.Y)+12, 13, ColSkyBlue)
+	ui.DrawBadge(blinkCard.X+cardW-65, blinkCard.Y+10, fmt.Sprintf("%.2fx", cfg.BlinkSpeed), ColIconBoxBg, ColYellow)
 	bsTrack := rl.NewRectangle(blinkCard.X+14, blinkCard.Y+46, blinkCard.Width-28, 12)
 	cfg.BlinkSpeed = ui.DrawSliderControl(bsTrack, cfg.BlinkSpeed, 0.2, 3.0, mousePos, ColSkyBlue)
 
@@ -888,6 +1001,7 @@ func (ui *UIState) drawPhysicsTab(viewRec rl.Rectangle, cfg *config.Config, mous
 // TAB 5: TECLAS & ATALHOS
 // -------------------------------------------------------------
 func (ui *UIState) drawKeybindsTab(viewRec rl.Rectangle, cfg *config.Config, mousePos rl.Vector2) {
+	cardW := viewRec.Width - 18
 	// Process rebind keypress
 	if ui.RebindingAction != "" {
 		key := rl.GetKeyPressed()
@@ -927,28 +1041,28 @@ func (ui *UIState) drawKeybindsTab(viewRec rl.Rectangle, cfg *config.Config, mou
 		actionID string
 		current  int32
 	}{
-		{"Menu / Configurações", "toggleMenu", cfg.Keybinds.ToggleMenu},
-		{"Editor Visual de Avatar", "toggleEditor", cfg.Keybinds.ToggleEditor},
-		{"Painel de Depuração (HUD)", "toggleHUD", cfg.Keybinds.ToggleHUD},
-		{"Modo Click-Through", "toggleClickThrough", cfg.Keybinds.ToggleClickThrough},
-		{"Janela Sem Bordas (OBS)", "toggleBorderless", cfg.Keybinds.ToggleBorderless},
-		{"Sempre no Topo (Topmost)", "toggleAlwaysOnTop", cfg.Keybinds.ToggleAlwaysOnTop},
-		{"Aumentar Sensibilidade", "increaseSens", cfg.Keybinds.IncreaseSens},
-		{"Diminuir Sensibilidade", "decreaseSens", cfg.Keybinds.DecreaseSens},
-		{"Pulo / Teste de Fala", "testBounce", cfg.Keybinds.TestBounce},
-		{"Resetar Posição e Escala", "resetAvatar", cfg.Keybinds.ResetAvatar},
+		{i18n.T("action_toggle_menu"), "toggleMenu", cfg.Keybinds.ToggleMenu},
+		{i18n.T("action_toggle_editor"), "toggleEditor", cfg.Keybinds.ToggleEditor},
+		{i18n.T("action_toggle_hud"), "toggleHUD", cfg.Keybinds.ToggleHUD},
+		{i18n.T("action_toggle_clickthrough"), "toggleClickThrough", cfg.Keybinds.ToggleClickThrough},
+		{i18n.T("action_toggle_borderless"), "toggleBorderless", cfg.Keybinds.ToggleBorderless},
+		{i18n.T("action_toggle_topmost"), "toggleAlwaysOnTop", cfg.Keybinds.ToggleAlwaysOnTop},
+		{i18n.T("action_increase_sens"), "increaseSens", cfg.Keybinds.IncreaseSens},
+		{i18n.T("action_decrease_sens"), "decreaseSens", cfg.Keybinds.DecreaseSens},
+		{i18n.T("action_test_bounce"), "testBounce", cfg.Keybinds.TestBounce},
+		{i18n.T("action_reset_avatar"), "resetAvatar", cfg.Keybinds.ResetAvatar},
 	}
 
-	contentH := float32(44) + float32(len(items))*50 + 64
+	contentH := float32(44) + float32(len(items))*48 + 80
 	startY := ui.BeginScrollView(viewRec, contentH)
 	curY := startY
 
-	ui.DrawTextBold("Atalhos de Teclado", int32(viewRec.X)+4, int32(curY), 14, ColSkyBlue)
-	ui.DrawText("Clique em qualquer botão e pressione a nova tecla", int32(viewRec.X)+4, int32(curY)+22, 11.5, ColTextMuted)
+	ui.DrawTextBold(i18n.T("label_keybinds_title"), int32(viewRec.X)+4, int32(curY), 14, ColSkyBlue)
+	ui.DrawText(i18n.T("label_keybinds_desc"), int32(viewRec.X)+4, int32(curY)+22, 11.5, ColTextMuted)
 	curY += 44
 
 	for _, it := range items {
-		cardRec := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 42)
+		cardRec := rl.NewRectangle(viewRec.X+2, curY, cardW, 42)
 		hovered := rl.CheckCollisionPointRec(mousePos, cardRec)
 		isListening := (ui.RebindingAction == it.actionID)
 
@@ -960,7 +1074,7 @@ func (ui *UIState) drawKeybindsTab(viewRec rl.Rectangle, cfg *config.Config, mou
 		badgeBg := ColIconBoxBg
 		badgeTextCol := ColWhite
 		if isListening {
-			keyName = "Pressione tecla..."
+			keyName = i18n.T("key_press_prompt")
 			badgeBg = ColWine
 			badgeTextCol = ColYellow
 		} else if hovered {
@@ -986,11 +1100,11 @@ func (ui *UIState) drawKeybindsTab(viewRec rl.Rectangle, cfg *config.Config, mou
 	curY += 8
 
 	// Reset Defaults Card
-	resetRec := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 44)
+	resetRec := rl.NewRectangle(viewRec.X+2, curY, cardW, 44)
 	hoveredReset := rl.CheckCollisionPointRec(mousePos, resetRec)
 	DrawCard(resetRec, hoveredReset, false)
 	ui.DrawIconBadge(resetRec.X+8, resetRec.Y+6, 32, IconRestore, ColSkyBlue, ColIconBoxBg)
-	ui.DrawTextBold("Restaurar Atalhos Padrão", int32(resetRec.X)+48, int32(resetRec.Y)+13, 12.5, ColTextTitle)
+	ui.DrawTextBold(i18n.T("btn_restore_defaults"), int32(resetRec.X)+48, int32(resetRec.Y)+13, 12.5, ColTextTitle)
 
 	if hoveredReset && rl.IsMouseButtonPressed(rl.MouseLeftButton) {
 		cfg.Keybinds = config.DefaultKeybinds()
@@ -1004,17 +1118,18 @@ func (ui *UIState) drawKeybindsTab(viewRec rl.Rectangle, cfg *config.Config, mou
 // TAB 6: OBS STUDIO & OVERLAY
 // -------------------------------------------------------------
 func (ui *UIState) drawOBSTab(viewRec rl.Rectangle, cfg *config.Config, wm *window.WindowManager, scale *float32, mousePos rl.Vector2) {
-	contentH := float32(520)
+	cardW := viewRec.Width - 18
+	contentH := float32(560)
 	startY := ui.BeginScrollView(viewRec, contentH)
 	curY := startY
 
 	// Card 1: OBS Quick Overlay Preset
-	presetCard := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 56)
+	presetCard := rl.NewRectangle(viewRec.X+2, curY, cardW, 56)
 	hoveredPreset := rl.CheckCollisionPointRec(mousePos, presetCard)
 	DrawCard(presetCard, hoveredPreset, false)
 	ui.DrawIconBadge(presetCard.X+8, presetCard.Y+8, 40, IconOBS, ColLime, ColIconBoxBg)
-	ui.DrawTextBold("Ativar Modo Overlay para OBS", int32(presetCard.X)+56, int32(presetCard.Y)+12, 13.5, ColTextTitle)
-	ui.DrawText("Fundo transparente + Sem bordas + Sempre no topo", int32(presetCard.X)+56, int32(presetCard.Y)+32, 11.5, ColLime)
+	ui.DrawTextBold(i18n.T("label_obs_preset"), int32(presetCard.X)+56, int32(presetCard.Y)+12, 13.5, ColTextTitle)
+	ui.DrawText(i18n.T("label_obs_preset_desc"), int32(presetCard.X)+56, int32(presetCard.Y)+32, 11.5, ColLime)
 
 	if hoveredPreset && rl.IsMouseButtonPressed(rl.MouseLeftButton) {
 		if !wm.IsBorderless() {
@@ -1029,19 +1144,19 @@ func (ui *UIState) drawOBSTab(viewRec rl.Rectangle, cfg *config.Config, wm *wind
 	curY += 68
 
 	// Card 2: Cor de Fundo (Chroma Key & Transparência) - 2x2 Clean Grid
-	bgCard := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 126)
+	bgCard := rl.NewRectangle(viewRec.X+2, curY, cardW, 126)
 	DrawCard(bgCard, false, false)
-	ui.DrawTextBold("Cor de Fundo da Janela", int32(bgCard.X)+14, int32(bgCard.Y)+12, 13.5, ColSkyBlue)
+	ui.DrawTextBold(i18n.T("label_bg_color"), int32(bgCard.X)+14, int32(bgCard.Y)+12, 13.5, ColSkyBlue)
 
 	colorPresets := []struct {
 		name string
 		rgba [4]uint8
 		col  rl.Color
 	}{
-		{"Transparente (Alpha)", [4]uint8{0, 0, 0, 0}, rl.NewColor(30, 42, 70, 255)},
-		{"Verde Chroma Key", [4]uint8{0, 255, 0, 255}, rl.NewColor(0, 228, 54, 255)},
-		{"Azul Chroma Key", [4]uint8{0, 0, 255, 255}, rl.NewColor(41, 173, 255, 255)},
-		{"Magenta Key", [4]uint8{255, 0, 255, 255}, rl.NewColor(255, 0, 77, 255)},
+		{i18n.T("color_transparent"), [4]uint8{0, 0, 0, 0}, rl.NewColor(30, 42, 70, 255)},
+		{i18n.T("color_green_screen"), [4]uint8{0, 255, 0, 255}, rl.NewColor(0, 228, 54, 255)},
+		{i18n.T("color_blue_screen"), [4]uint8{0, 0, 255, 255}, rl.NewColor(41, 173, 255, 255)},
+		{i18n.T("color_magenta_screen"), [4]uint8{255, 0, 255, 255}, rl.NewColor(255, 0, 77, 255)},
 	}
 
 	chipW := (bgCard.Width - 28 - 10) / 2
@@ -1065,22 +1180,22 @@ func (ui *UIState) drawOBSTab(viewRec rl.Rectangle, cfg *config.Config, wm *wind
 	curY += 138
 
 	// Card 3: Zoom / Escala
-	zoomCard := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 80)
+	zoomCard := rl.NewRectangle(viewRec.X+2, curY, cardW, 80)
 	DrawCard(zoomCard, false, false)
-	ui.DrawTextBold("Zoom e Escala do Avatar", int32(zoomCard.X)+14, int32(zoomCard.Y)+12, 13, ColSkyBlue)
-	ui.DrawBadge(zoomCard.X+zoomCard.Width-70, zoomCard.Y+10, fmt.Sprintf("%.2fx", *scale), ColIconBoxBg, ColYellow)
+	ui.DrawTextBold(i18n.T("label_zoom_scale"), int32(zoomCard.X)+14, int32(zoomCard.Y)+12, 13, ColSkyBlue)
+	ui.DrawBadge(zoomCard.X+cardW-65, zoomCard.Y+10, fmt.Sprintf("%.2fx", *scale), ColIconBoxBg, ColYellow)
 	zTrack := rl.NewRectangle(zoomCard.X+14, zoomCard.Y+46, zoomCard.Width-28, 12)
 	*scale = ui.DrawSliderControl(zTrack, *scale, 0.2, 4.0, mousePos, ColSkyBlue)
 	curY += 92
 
 	// Card 4: OBS Step-by-Step Guide
-	guideCard := rl.NewRectangle(viewRec.X+2, curY, viewRec.Width-16, 135)
+	guideCard := rl.NewRectangle(viewRec.X+2, curY, cardW, 135)
 	DrawCard(guideCard, false, false)
-	ui.DrawTextBold("Passo a Passo para o OBS Studio:", int32(guideCard.X)+14, int32(guideCard.Y)+14, 13.5, ColSkyBlue)
-	ui.DrawText("1. Adicione uma fonte 'Captura de Janela' no OBS", int32(guideCard.X)+14, int32(guideCard.Y)+38, 11.5, ColTextBody)
-	ui.DrawText("2. Selecione a janela 'PNGTuber Lite'", int32(guideCard.X)+14, int32(guideCard.Y)+58, 11.5, ColTextBody)
-	ui.DrawText("3. Marque 'Permitir Transparência' (Allow Transparency)", int32(guideCard.X)+14, int32(guideCard.Y)+78, 11.5, ColLime)
-	ui.DrawText("✓ Pronto! O avatar fica recortado sem precisar de tela verde!", int32(guideCard.X)+14, int32(guideCard.Y)+102, 12, ColYellow)
+	ui.DrawTextBold(i18n.T("obs_guide_title"), int32(guideCard.X)+14, int32(guideCard.Y)+14, 13.5, ColSkyBlue)
+	ui.DrawText(i18n.T("obs_step1"), int32(guideCard.X)+14, int32(guideCard.Y)+38, 11.5, ColTextBody)
+	ui.DrawText(i18n.T("obs_step2"), int32(guideCard.X)+14, int32(guideCard.Y)+58, 11.5, ColTextBody)
+	ui.DrawText(i18n.T("obs_step3"), int32(guideCard.X)+14, int32(guideCard.Y)+78, 11.5, ColLime)
+	ui.DrawText(i18n.T("obs_step_ready"), int32(guideCard.X)+14, int32(guideCard.Y)+102, 12, ColYellow)
 
 	ui.EndScrollView(viewRec, contentH)
 }
@@ -1108,10 +1223,7 @@ func (ui *UIState) drawUpdateModal(mousePos rl.Vector2, screenW, screenH float32
 	rl.DrawRectangleRoundedLines(modalRec, 0.05, 6, ColPanelBorder)
 
 	tag := upState.Latest.TagName
-	titleText := "Nova Versão Disponível!"
-	if upState.Latest.IsHotfix {
-		titleText = "Hotfix Importante Disponível!"
-	}
+	titleText := i18n.T("update_available_title")
 
 	// Header
 	ui.DrawIconBadge(modalX+18, modalY+16, 38, IconUpdate, ColLime, ColIconBoxBg)
@@ -1134,7 +1246,7 @@ func (ui *UIState) drawUpdateModal(mousePos rl.Vector2, screenW, screenH float32
 	boxRec := rl.NewRectangle(modalX+18, modalY+68, modalW-36, boxH)
 	DrawCard(boxRec, false, false)
 
-	ui.DrawTextBold("Destaques e Novidades:", int32(boxRec.X)+14, int32(boxRec.Y)+12, 13.5, ColSkyBlue)
+	ui.DrawTextBold(i18n.T("changelog_title"), int32(boxRec.X)+14, int32(boxRec.Y)+12, 13.5, ColSkyBlue)
 	lines := upState.Latest.GetCleanSummary()
 	lineY := int32(boxRec.Y) + 36
 	for _, l := range lines {
@@ -1154,7 +1266,7 @@ func (ui *UIState) drawUpdateModal(mousePos rl.Vector2, screenW, screenH float32
 		}
 		rl.DrawRectangleRounded(rl.NewRectangle(barRec.X, barRec.Y, fillW, barRec.Height), 0.5, 4, ColLime)
 
-		pctText := fmt.Sprintf("Baixando atualização... %d%%", int(upState.Progress*100))
+		pctText := fmt.Sprintf("%s %d%%", i18n.T("status_downloading"), int(upState.Progress*100))
 		ui.DrawTextBold(pctText, int32(modalX)+28, int32(curY)+21, 12, ColWhite)
 		return
 	}
@@ -1164,8 +1276,8 @@ func (ui *UIState) drawUpdateModal(mousePos rl.Vector2, screenW, screenH float32
 		DrawCard(succCard, false, false)
 		rl.DrawRectangleRoundedLines(succCard, 0.16, 4, ColLime)
 		ui.DrawIconBadge(succCard.X+10, succCard.Y+9, 38, IconUpdate, ColLime, ColIconBoxBg)
-		ui.DrawTextBold("✓ Atualização instalada com sucesso!", int32(succCard.X)+56, int32(succCard.Y)+11, 13.5, ColLime)
-		ui.DrawText(fmt.Sprintf("Reiniciando automaticamente em %.1fs...", upState.RestartCountdown), int32(succCard.X)+56, int32(succCard.Y)+31, 12, ColYellow)
+		ui.DrawTextBold(i18n.T("update_installed_success"), int32(succCard.X)+56, int32(succCard.Y)+11, 13.5, ColLime)
+		ui.DrawText(fmt.Sprintf(i18n.T("update_restarting_in"), upState.RestartCountdown), int32(succCard.X)+56, int32(succCard.Y)+31, 12, ColYellow)
 		return
 	}
 
@@ -1205,8 +1317,11 @@ func (ui *UIState) drawUpdateModal(mousePos rl.Vector2, screenW, screenH float32
 	}
 	rl.DrawRectangleRounded(nowRec, 0.45, 6, nowBg)
 	rl.DrawRectangleRoundedLines(nowRec, 0.45, 6, ColLime)
-	GlobalIcons.DrawIcon(IconUpdate, nowRec.X+24, nowRec.Y+13, 18, ColWhite)
-	ui.DrawTextBold("Atualizar Agora", int32(nowRec.X)+52, int32(nowRec.Y)+13, 13, ColWhite)
+	nowLabel := i18n.T("btn_update_now")
+	nowTextW := ui.MeasureTextBold(nowLabel, 12.5)
+	nowCenterX := nowRec.X + (nowRec.Width - (18 + 8 + nowTextW)) / 2
+	GlobalIcons.DrawIcon(IconUpdate, nowCenterX, nowRec.Y+13, 18, ColWhite)
+	ui.DrawTextBold(nowLabel, int32(nowCenterX)+26, int32(nowRec.Y)+13, 12.5, ColWhite)
 
 	// Button 2: Lembrar Depois
 	laterRec := rl.NewRectangle(modalX+30+btnW, curY+38, btnW, btnH)
@@ -1221,8 +1336,11 @@ func (ui *UIState) drawUpdateModal(mousePos rl.Vector2, screenW, screenH float32
 	}
 	rl.DrawRectangleRounded(laterRec, 0.45, 6, laterBg)
 	rl.DrawRectangleRoundedLines(laterRec, 0.45, 6, ColPanelBorder)
-	GlobalIcons.DrawIcon(IconRestore, laterRec.X+24, laterRec.Y+13, 18, ColLightGray)
-	ui.DrawTextBold("Lembrar Depois", int32(laterRec.X)+52, int32(laterRec.Y)+13, 13, ColTextBody)
+	laterLabel := i18n.T("btn_remind_later")
+	laterTextW := ui.MeasureTextBold(laterLabel, 12.5)
+	laterCenterX := laterRec.X + (laterRec.Width - (18 + 8 + laterTextW)) / 2
+	GlobalIcons.DrawIcon(IconRestore, laterCenterX, laterRec.Y+13, 18, ColLightGray)
+	ui.DrawTextBold(laterLabel, int32(laterCenterX)+26, int32(laterRec.Y)+13, 12.5, ColTextBody)
 }
 
 // -------------------------------------------------------------
@@ -1248,8 +1366,8 @@ func (ui *UIState) drawCloseConfirmModal(mousePos rl.Vector2, screenW, screenH f
 
 	// Header
 	ui.DrawIconBadge(modalX+18, modalY+16, 38, IconClose, ColSkyBlue, ColIconBoxBg)
-	ui.DrawTextBold("Fechar ou Manter em Segundo Plano?", int32(modalX)+66, int32(modalY)+18, 16, ColTextTitle)
-	ui.DrawText("Escolha como deseja prosseguir com o PNGTuber Lite", int32(modalX)+66, int32(modalY)+38, 12, ColTextMuted)
+	ui.DrawTextBold(i18n.T("modal_close_title"), int32(modalX)+66, int32(modalY)+18, 16, ColTextTitle)
+	ui.DrawText(i18n.T("modal_close_desc"), int32(modalX)+66, int32(modalY)+38, 12, ColTextMuted)
 
 	// Close 'X' button
 	closeBtnRec := rl.NewRectangle(modalX+modalW-40, modalY+18, 26, 26)
@@ -1265,17 +1383,39 @@ func (ui *UIState) drawCloseConfirmModal(mousePos rl.Vector2, screenW, screenH f
 	infoBox := rl.NewRectangle(modalX+18, modalY+68, modalW-36, 120)
 	DrawCard(infoBox, false, false)
 
-	ui.DrawText("• Minimizar no Tray: o avatar continuará ativo capturando áudio.", int32(infoBox.X)+14, int32(infoBox.Y)+14, 12, ColTextBody)
-	ui.DrawText("• Fechar Aplicativo: encerra totalmente o processo do programa.", int32(infoBox.X)+14, int32(infoBox.Y)+38, 12, ColTextBody)
-	ui.DrawText("✓ Dica: Clique duas vezes no ícone perto do relógio para reabrir.", int32(infoBox.X)+14, int32(infoBox.Y)+64, 11.5, ColLime)
-	ui.DrawText("A janela pode ser restaurada ou ocultada a qualquer momento.", int32(infoBox.X)+14, int32(infoBox.Y)+86, 11.5, ColTextMuted)
+	ui.DrawText(i18n.T("close_modal_bullet1"), int32(infoBox.X)+14, int32(infoBox.Y)+14, 12, ColTextBody)
+	ui.DrawText(i18n.T("close_modal_bullet2"), int32(infoBox.X)+14, int32(infoBox.Y)+38, 12, ColTextBody)
+	ui.DrawText(i18n.T("close_modal_tip"), int32(infoBox.X)+14, int32(infoBox.Y)+64, 11.5, ColLime)
+	ui.DrawText(i18n.T("close_modal_footer"), int32(infoBox.X)+14, int32(infoBox.Y)+86, 11.5, ColTextMuted)
 
-	// Action buttons in bottom bar with generous breathing room
+	// Action buttons in bottom bar with dynamic adaptive sizing
 	btnH := float32(44)
 	curY := modalY + 226
+	gap := float32(10)
+
+	labelMin := i18n.T("btn_minimize_tray")
+	labelQuit := i18n.T("btn_exit_app")
+	labelCan := i18n.T("btn_cancel")
+
+	wMin := ui.MeasureTextBold(labelMin, 12) + 48
+	wQuit := ui.MeasureTextBold(labelQuit, 12) + 48
+	wCan := ui.MeasureTextBold(labelCan, 12) + 32
+
+	totalW := wMin + wQuit + wCan + 2*gap
+	availW := modalW - 36
+	if totalW < availW {
+		extra := (availW - totalW) / 3
+		wMin += extra
+		wQuit += extra
+		wCan += extra
+	}
+
+	x1 := modalX + 18
+	x2 := x1 + wMin + gap
+	x3 := x2 + wQuit + gap
 
 	// 1. Minimizar no Tray
-	minBtn := rl.NewRectangle(modalX+18, curY, 204, btnH)
+	minBtn := rl.NewRectangle(x1, curY, wMin, btnH)
 	minHover := rl.CheckCollisionPointRec(mousePos, minBtn)
 	minBg := rl.NewColor(28, 68, 125, 255)
 	if minHover {
@@ -1289,11 +1429,14 @@ func (ui *UIState) drawCloseConfirmModal(mousePos rl.Vector2, screenW, screenH f
 	}
 	rl.DrawRectangleRounded(minBtn, 0.45, 6, minBg)
 	rl.DrawRectangleRoundedLines(minBtn, 0.45, 6, ColSkyBlue)
-	GlobalIcons.DrawIcon(IconEnable, minBtn.X+16, minBtn.Y+13, 18, ColWhite)
-	ui.DrawTextBold("Minimizar no Tray", int32(minBtn.X)+44, int32(minBtn.Y)+13, 12.5, ColWhite)
+
+	tMinW := ui.MeasureTextBold(labelMin, 12)
+	cMinX := minBtn.X + (minBtn.Width-(18+8+tMinW))/2
+	GlobalIcons.DrawIcon(IconEnable, cMinX, minBtn.Y+13, 18, ColWhite)
+	ui.DrawTextBold(labelMin, int32(cMinX)+26, int32(minBtn.Y)+13, 12, ColWhite)
 
 	// 2. Fechar Aplicativo
-	quitBtn := rl.NewRectangle(modalX+232, curY, 178, btnH)
+	quitBtn := rl.NewRectangle(x2, curY, wQuit, btnH)
 	quitHover := rl.CheckCollisionPointRec(mousePos, quitBtn)
 	quitBg := rl.NewColor(135, 32, 45, 255)
 	if quitHover {
@@ -1307,11 +1450,14 @@ func (ui *UIState) drawCloseConfirmModal(mousePos rl.Vector2, screenW, screenH f
 	}
 	rl.DrawRectangleRounded(quitBtn, 0.45, 6, quitBg)
 	rl.DrawRectangleRoundedLines(quitBtn, 0.45, 6, ColRed)
-	GlobalIcons.DrawIcon(IconClose, quitBtn.X+16, quitBtn.Y+13, 18, ColWhite)
-	ui.DrawTextBold("Fechar Aplicativo", int32(quitBtn.X)+44, int32(quitBtn.Y)+13, 12.5, ColWhite)
+
+	tQuitW := ui.MeasureTextBold(labelQuit, 12)
+	cQuitX := quitBtn.X + (quitBtn.Width-(18+8+tQuitW))/2
+	GlobalIcons.DrawIcon(IconClose, cQuitX, quitBtn.Y+13, 18, ColWhite)
+	ui.DrawTextBold(labelQuit, int32(cQuitX)+26, int32(quitBtn.Y)+13, 12, ColWhite)
 
 	// 3. Cancelar
-	canBtn := rl.NewRectangle(modalX+420, curY, 122, btnH)
+	canBtn := rl.NewRectangle(x3, curY, wCan, btnH)
 	canHover := rl.CheckCollisionPointRec(mousePos, canBtn)
 	canBg := ColCardBg
 	if canHover {
@@ -1322,5 +1468,7 @@ func (ui *UIState) drawCloseConfirmModal(mousePos rl.Vector2, screenW, screenH f
 	}
 	rl.DrawRectangleRounded(canBtn, 0.45, 6, canBg)
 	rl.DrawRectangleRoundedLines(canBtn, 0.45, 6, ColPanelBorder)
-	ui.DrawTextBold("Cancelar", int32(canBtn.X)+30, int32(canBtn.Y)+13, 12.5, ColTextBody)
+	tCanW := ui.MeasureTextBold(labelCan, 12)
+	cCanX := canBtn.X + (canBtn.Width-tCanW)/2
+	ui.DrawTextBold(labelCan, int32(cCanX), int32(canBtn.Y)+13, 12, ColTextBody)
 }

@@ -40,6 +40,9 @@ var IconPhysicsPNG []byte
 //go:embed icons/keys.png
 var IconKeysPNG []byte
 
+//go:embed icons/language.png
+var IconLanguagePNG []byte
+
 //go:embed icons/logo-256x256.png
 var AppLogoPNG []byte
 

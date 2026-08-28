@@ -31,8 +31,10 @@ const (
 	IconSelected
 	IconSettings
 	IconUpdate
+	IconLanguage
 
 	// Semantic & Compatibility Aliases
+	IconLang      = IconLanguage
 	IconDownload  = IconUpdate
 	IconConfig    = IconSettings
 	IconFileText  = IconOpenEditor
@@ -89,6 +91,7 @@ func (im *IconManager) Load() error {
 		IconSelected:   assets.IconSelectedPNG,
 		IconSettings:   assets.IconSettingsPNG,
 		IconUpdate:     assets.IconUpdatePNG,
+		IconLanguage:   assets.IconLanguagePNG,
 	}
 
 	for id, data := range rawIcons {

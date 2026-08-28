@@ -15,6 +15,7 @@ import (
 	"pngtuber-lite/pkg/config"
 	"pngtuber-lite/pkg/costume"
 	"pngtuber-lite/pkg/editor"
+	"pngtuber-lite/pkg/i18n"
 	"pngtuber-lite/pkg/model"
 	"pngtuber-lite/pkg/profiler"
 	"pngtuber-lite/pkg/render"
@@ -97,6 +98,13 @@ func main() {
 	}
 	if *thresholdFlag > 0 {
 		cfg.AudioThreshold = float32(*thresholdFlag)
+	}
+
+	// Initialize user interface language
+	if cfg.Language != "" {
+		i18n.SetLanguage(cfg.Language)
+	} else {
+		i18n.SetLanguage(i18n.DetectSystemLanguage())
 	}
 
 	// 2. Load and Parse Avatar .save file with robust fallbacks and embedded assets
@@ -750,7 +758,7 @@ func drawDebugHUD(
 
 	// 1. Title Header (No overlapping!)
 	ui.GlobalIcons.DrawIcon(ui.IconPhysics, contentX, y, 18, ui.ColSkyBlue)
-	uiState.DrawTextBold("Telemetria & Profiler", int32(contentX)+24, int32(y)+1, 14, ui.ColTextTitle)
+	uiState.DrawTextBold(i18n.T("telemetry_title"), int32(contentX)+24, int32(y)+1, 14, ui.ColTextTitle)
 	uiState.DrawBadge(panelRec.X+panelW-85, y-1, "F3 [HUD]", ui.ColCardBg, ui.ColSkyBlue)
 	y += 26
 
@@ -763,7 +771,7 @@ func drawDebugHUD(
 		cpuColor = ui.ColRed
 	}
 
-	uiState.DrawTextBold(fmt.Sprintf("CPU Processo: %.1f%% (Total: %.1f%%)", stats.CPUPercent, stats.CPUTotalPercent), int32(contentX), int32(y), 12.5, cpuColor)
+	uiState.DrawTextBold(fmt.Sprintf("%s: %.1f%% (%s: %.1f%%)", i18n.T("label_hud_cpu"), stats.CPUPercent, i18n.T("label_total_system"), stats.CPUTotalPercent), int32(contentX), int32(y), 12.5, cpuColor)
 	uiState.DrawText(fmt.Sprintf("%d Goroutines", stats.NumGoroutine), int32(contentX+contentW)-90, int32(y)+1, 11, ui.ColTextMuted)
 	y += 18
 
@@ -777,7 +785,7 @@ func drawDebugHUD(
 	y += 36
 
 	// 3. RAM (Physical RSS & Go Heap)
-	uiState.DrawTextBold(fmt.Sprintf("RAM Física (RSS): %.1f MB", stats.RamRSSMB), int32(contentX), int32(y), 12.5, ui.ColSkyBlue)
+	uiState.DrawTextBold(fmt.Sprintf("%s: %.1f MB", i18n.T("label_hud_ram_rss"), stats.RamRSSMB), int32(contentX), int32(y), 12.5, ui.ColSkyBlue)
 	uiState.DrawText(fmt.Sprintf("Heap: %.1f MB (Sys: %.1f MB | GC: %d)", stats.RamAllocMB, stats.RamSysMB, stats.NumGC), int32(contentX), int32(y)+16, 11, ui.ColTextMuted)
 	y += 32
 
@@ -794,8 +802,8 @@ func drawDebugHUD(
 		frameColor = ui.ColRed
 	}
 
-	uiState.DrawTextBold(fmt.Sprintf("Frame: %.1f ms | FPS: %d", stats.FrameTimeMS, stats.FPS), int32(contentX), int32(y), 12.5, frameColor)
-	uiState.DrawText(fmt.Sprintf("VRAM: %.1f MB (%d tex)", stats.VRAMMB, stats.TextureCount), int32(contentX+contentW)-135, int32(y)+1, 11, ui.ColTextBody)
+	uiState.DrawTextBold(fmt.Sprintf("%s: %.1f ms | %s: %d", i18n.T("label_hud_frametime"), stats.FrameTimeMS, i18n.T("label_hud_fps"), stats.FPS), int32(contentX), int32(y), 12.5, frameColor)
+	uiState.DrawText(fmt.Sprintf("%s: %.1f MB (%d tex)", i18n.T("label_hud_vram"), stats.VRAMMB, stats.TextureCount), int32(contentX+contentW)-135, int32(y)+1, 11, ui.ColTextBody)
 	y += 18
 
 	// Frametime Sparkline Graph (target line at 16.6ms for 60fps)
@@ -806,7 +814,7 @@ func drawDebugHUD(
 	// 5. Audio & VAD
 	micName := micDevice
 	if micName == "" {
-		micName = "Padrão do Sistema"
+		micName = i18n.T("label_system_default")
 	}
 	if len(micName) > 24 {
 		micName = micName[:24] + "..."
@@ -814,17 +822,17 @@ func drawDebugHUD(
 
 	uiState.DrawTextBold(fmt.Sprintf("Mic: %s", micName), int32(contentX), int32(y), 12.5, ui.ColYellow)
 
-	vadText := "🤫 Silêncio"
+	vadText := i18n.T("label_status_silent")
 	vadCol := ui.ColTextMuted
 	vadBg := ui.ColCardBg
 	if isSpeaking {
-		vadText = "🗣 Falando"
+		vadText = i18n.T("label_status_speaking")
 		vadCol = ui.ColLime
 		vadBg = rl.NewColor(24, 85, 48, 255)
 	}
-	uiState.DrawBadge(contentX+contentW-90, y-1, vadText, vadBg, vadCol)
+	uiState.DrawBadge(contentX+contentW-175, y-1, vadText, vadBg, vadCol)
 
-	uiState.DrawText(fmt.Sprintf("RMS: %.4f | Limiar: %.4f (+/-)", volume, threshold), int32(contentX), int32(y)+16, 11, ui.ColTextMuted)
+	uiState.DrawText(fmt.Sprintf("RMS: %.4f | %s: %.4f (+/-)", volume, i18n.T("label_vad_threshold"), threshold), int32(contentX), int32(y)+16, 11, ui.ColTextMuted)
 	y += 32
 
 	// Audio Level Bar with Threshold needle
@@ -844,7 +852,7 @@ func drawDebugHUD(
 	y += 18
 
 	// 6. Avatar & Window Status
-	uiState.DrawText(fmt.Sprintf("Figurino: %d/10 | Zoom: %.2fx | Pos: (%.0f, %.0f)", costume, scale, avatarX, avatarY), int32(contentX), int32(y), 11.5, ui.ColTextBody)
+	uiState.DrawText(fmt.Sprintf("%s: %d/10 | Zoom: %.2fx | Pos: (%.0f, %.0f)", i18n.T("label_costume_slot"), costume, scale, avatarX, avatarY), int32(contentX), int32(y), 11.5, ui.ColTextBody)
 	y += 18
 
 	// Hotkey status badges

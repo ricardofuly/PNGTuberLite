@@ -8,6 +8,7 @@ import (
 	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"pngtuber-lite/pkg/i18n"
 	"pngtuber-lite/pkg/model"
 	"pngtuber-lite/pkg/render"
 	"pngtuber-lite/pkg/ui"
@@ -441,7 +442,7 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 	rl.DrawLine(0, 48, int32(screenW), 48, ui.ColPanelBorder)
 
 	ui.GlobalIcons.DrawIcon(ui.IconEditor, 16, 14, 20, ui.ColSkyBlue)
-	e.UI.DrawTextBold("EDITOR DE AVATAR (PNGTuber Lite)", 46, 15, 15, ui.ColTextTitle)
+	e.UI.DrawTextBold(i18n.T("label_editor_title"), 46, 15, 15, ui.ColTextTitle)
 
 	// Save Button (Pill with generous breathing room)
 	saveBtnRec := rl.NewRectangle(screenW-265, 7, 120, 34)
@@ -456,7 +457,7 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 	rl.DrawRectangleRounded(saveBtnRec, 0.45, 6, saveBg)
 	rl.DrawRectangleRoundedLines(saveBtnRec, 0.45, 6, ui.ColLime)
 	ui.GlobalIcons.DrawIcon(ui.IconSave, saveBtnRec.X+14, saveBtnRec.Y+8, 18, ui.ColWhite)
-	e.UI.DrawTextBold("SALVAR", int32(saveBtnRec.X)+40, int32(saveBtnRec.Y)+9, 12.5, ui.ColWhite)
+	e.UI.DrawTextBold(i18n.T("btn_save"), int32(saveBtnRec.X)+40, int32(saveBtnRec.Y)+9, 12.5, ui.ColWhite)
 
 	// Close Editor Button (Pill with generous breathing room)
 	closeBtnRec := rl.NewRectangle(screenW-135, 7, 120, 34)
@@ -471,7 +472,7 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 	rl.DrawRectangleRounded(closeBtnRec, 0.45, 6, closeBg)
 	rl.DrawRectangleRoundedLines(closeBtnRec, 0.45, 6, ui.ColPanelBorder)
 	ui.GlobalIcons.DrawIcon(ui.IconClose, closeBtnRec.X+14, closeBtnRec.Y+8, 18, ui.ColRed)
-	e.UI.DrawTextBold("FECHAR", int32(closeBtnRec.X)+40, int32(closeBtnRec.Y)+9, 12.5, ui.ColTextTitle)
+	e.UI.DrawTextBold(i18n.T("btn_close"), int32(closeBtnRec.X)+40, int32(closeBtnRec.Y)+9, 12.5, ui.ColTextTitle)
 
 	// Status Notification Banner
 	if e.StatusMessage != "" {
@@ -487,7 +488,7 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 	rl.DrawRectangleRounded(leftRec, 0.04, 6, ui.ColPanelBg)
 	rl.DrawRectangleRoundedLines(leftRec, 0.04, 6, ui.ColPanelBorder)
 
-	e.UI.DrawTextBold("Hierarquia de Camadas", int32(leftRec.X)+14, int32(leftRec.Y)+12, 14, ui.ColSkyBlue)
+	e.UI.DrawTextBold(i18n.T("label_layers_list"), int32(leftRec.X)+14, int32(leftRec.Y)+12, 14, ui.ColSkyBlue)
 
 	// Top Icon Toolbar (Import PNG, New Avatar, Duplicate, Delete) - Clean Icons Only!
 	toolGap := float32(6)
@@ -590,7 +591,7 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 			}
 
 			ui.GlobalIcons.DrawIcon(ui.IconAvatar, rootRec.X+8, rootRec.Y+9, 18, ui.ColYellow)
-			e.UI.DrawTextBold("⭐ Pivot Central / Raiz", int32(rootRec.X)+32, int32(rootRec.Y)+10, 12.5, ui.ColYellow)
+			e.UI.DrawTextBold(i18n.T("label_root_pivot"), int32(rootRec.X)+32, int32(rootRec.Y)+10, 12.5, ui.ColYellow)
 			e.UI.DrawBadge(rootRec.X+rootRec.Width-56, rootRec.Y+9, "Raiz", ui.ColIconBoxBg, ui.ColOrange)
 
 			if hovered && rl.IsMouseButtonPressed(rl.MouseLeftButton) {
@@ -650,7 +651,7 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 	}
 
 	// 3. Right Sidebar: Layer Properties & Settings (Wider for full visibility tab room)
-	rightW := float32(400)
+	rightW := float32(420)
 	rightRec := rl.NewRectangle(screenW-rightW-14, 58, rightW, screenH-72)
 	rl.DrawRectangleRounded(rightRec, 0.04, 6, ui.ColPanelBg)
 	rl.DrawRectangleRoundedLines(rightRec, 0.04, 6, ui.ColPanelBorder)
@@ -716,7 +717,7 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 	}
 
 	if curLayer == nil {
-		e.UI.DrawText("Selecione uma camada para editar propriedades", int32(rightRec.X)+20, int32(rightRec.Y)+40, 13, ui.ColTextMuted)
+		e.UI.DrawText(i18n.T("label_no_layer_selected"), int32(rightRec.X)+20, int32(rightRec.Y)+40, 13, ui.ColTextMuted)
 		return
 	}
 
@@ -725,10 +726,10 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 		tab  EditorTab
 		name string
 	}{
-		{TabLayerGeneral, "Geral"},
-		{TabLayerVisibility, "Visibilidade"},
-		{TabLayerPhysics, "Física"},
-		{TabLayerSprite, "Sprite"},
+		{TabLayerGeneral, i18n.T("tab_layer_general")},
+		{TabLayerVisibility, i18n.T("tab_layer_visibility")},
+		{TabLayerPhysics, i18n.T("tab_layer_physics")},
+		{TabLayerSprite, i18n.T("tab_layer_sprite")},
 	}
 
 	tW := (rightW - 24) / float32(len(tabs))
@@ -756,7 +757,14 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 		if isActive {
 			rl.DrawRectangleRoundedLines(tRec, 0.4, 4, ui.ColSkyBlue)
 		}
-		e.UI.DrawTextBold(t.name, int32(tRec.X)+int32(tW/2)-int32(e.UI.MeasureTextBold(t.name, 11.5)/2), int32(tRec.Y)+8, 11.5, tTextCol)
+
+		fontSize := float32(11.5)
+		textW := e.UI.MeasureTextBold(t.name, fontSize)
+		if textW > tRec.Width-6 {
+			fontSize = 10.0
+			textW = e.UI.MeasureTextBold(t.name, fontSize)
+		}
+		e.UI.DrawTextBold(t.name, int32(tRec.X)+int32(tW/2)-int32(textW/2), int32(tRec.Y)+8, fontSize, tTextCol)
 	}
 
 	// Scrollable Properties Viewport
@@ -822,15 +830,15 @@ func (e *EditorState) drawRootPivotPanel(rightRec rl.Rectangle, mousePos rl.Vect
 	ui.DrawCard(hCard, false, false)
 	rl.DrawRectangleRoundedLines(hCard, 0.16, 4, ui.ColYellow)
 	e.UI.DrawIconBadge(hCard.X+10, hCard.Y+10, 40, ui.IconAvatar, ui.ColYellow, ui.ColIconBoxBg)
-	e.UI.DrawTextBold("Pivot Central do Personagem", int32(hCard.X)+58, int32(hCard.Y)+12, 14, ui.ColYellow)
-	e.UI.DrawText("Ponto de ancoragem global da raiz", int32(hCard.X)+58, int32(hCard.Y)+34, 11.5, ui.ColTextMuted)
+	e.UI.DrawTextBold(i18n.T("label_pivot_character"), int32(hCard.X)+58, int32(hCard.Y)+12, 14, ui.ColYellow)
+	e.UI.DrawText(i18n.T("label_pivot_anchor_desc"), int32(hCard.X)+58, int32(hCard.Y)+34, 11.5, ui.ColTextMuted)
 
 	y += 72
 
 	// Info Card
 	infoCard := rl.NewRectangle(rightRec.X+12, float32(y), rightRec.Width-24, 120)
 	ui.DrawCard(infoCard, false, false)
-	e.UI.DrawTextBold("Estatísticas do Avatar", int32(infoCard.X)+14, int32(infoCard.Y)+12, 13.5, ui.ColSkyBlue)
+	e.UI.DrawTextBold(i18n.T("label_avatar_stats"), int32(infoCard.X)+14, int32(infoCard.Y)+12, 13.5, ui.ColSkyBlue)
 
 	layerCount := 0
 	rootCount := 0
@@ -838,18 +846,18 @@ func (e *EditorState) drawRootPivotPanel(rightRec rl.Rectangle, mousePos rl.Vect
 		layerCount = len(e.Avatar.Layers)
 		rootCount = len(e.Avatar.RootLayers)
 	}
-	e.UI.DrawText(fmt.Sprintf("• Total de Camadas: %d", layerCount), int32(infoCard.X)+14, int32(infoCard.Y)+36, 12, ui.ColTextBody)
-	e.UI.DrawText(fmt.Sprintf("• Camadas Raiz Conectadas: %d", rootCount), int32(infoCard.X)+14, int32(infoCard.Y)+58, 12, ui.ColTextBody)
-	e.UI.DrawText(fmt.Sprintf("• Arquivo: %s", filepath.Base(e.AvatarFilePath)), int32(infoCard.X)+14, int32(infoCard.Y)+80, 12, ui.ColTextBody)
+	e.UI.DrawText(fmt.Sprintf(i18n.T("label_total_layers"), layerCount), int32(infoCard.X)+14, int32(infoCard.Y)+36, 12, ui.ColTextBody)
+	e.UI.DrawText(fmt.Sprintf(i18n.T("label_root_layers_connected"), rootCount), int32(infoCard.X)+14, int32(infoCard.Y)+58, 12, ui.ColTextBody)
+	e.UI.DrawText(fmt.Sprintf(i18n.T("label_file_path"), filepath.Base(e.AvatarFilePath)), int32(infoCard.X)+14, int32(infoCard.Y)+80, 12, ui.ColTextBody)
 
 	y += 134
 
 	// Central Pivot Origin Display Card
 	originCard := rl.NewRectangle(rightRec.X+12, float32(y), rightRec.Width-24, 100)
 	ui.DrawCard(originCard, false, false)
-	e.UI.DrawTextBold("Origem do Canvas (Centro)", int32(originCard.X)+14, int32(originCard.Y)+12, 13.5, ui.ColSkyBlue)
-	e.UI.DrawText(fmt.Sprintf("Origem X: %.1f px | Origem Y: %.1f px", origin.X, origin.Y), int32(originCard.X)+14, int32(originCard.Y)+36, 12, ui.ColTextBody)
-	e.UI.DrawText(fmt.Sprintf("Escala Global: %.2fx", scale), int32(originCard.X)+14, int32(originCard.Y)+58, 12, ui.ColTextBody)
+	e.UI.DrawTextBold(i18n.T("label_canvas_origin"), int32(originCard.X)+14, int32(originCard.Y)+12, 13.5, ui.ColSkyBlue)
+	e.UI.DrawText(fmt.Sprintf(i18n.T("label_origin_coords"), origin.X, origin.Y), int32(originCard.X)+14, int32(originCard.Y)+36, 12, ui.ColTextBody)
+	e.UI.DrawText(fmt.Sprintf(i18n.T("label_global_scale"), scale), int32(originCard.X)+14, int32(originCard.Y)+58, 12, ui.ColTextBody)
 
 	y += 114
 
@@ -866,7 +874,7 @@ func (e *EditorState) drawRootPivotPanel(rightRec rl.Rectangle, mousePos rl.Vect
 	rl.DrawRectangleRounded(saveCard, 0.35, 4, saveBg)
 	rl.DrawRectangleRoundedLines(saveCard, 0.35, 4, ui.ColLime)
 	ui.GlobalIcons.DrawIcon(ui.IconSave, saveCard.X+14, saveCard.Y+12, 20, ui.ColWhite)
-	e.UI.DrawTextBold("Salvar Modificações do Avatar", int32(saveCard.X)+46, int32(saveCard.Y)+14, 13, ui.ColWhite)
+	e.UI.DrawTextBold(i18n.T("btn_save_apply"), int32(saveCard.X)+46, int32(saveCard.Y)+14, 13, ui.ColWhite)
 }
 
 func (e *EditorState) drawGeneralTab(rightRec rl.Rectangle, startY int32, layer *model.Layer, mousePos rl.Vector2) {
@@ -883,7 +891,7 @@ func (e *EditorState) drawGeneralTab(rightRec rl.Rectangle, startY int32, layer 
 	// Z-Index Card
 	zCard := rl.NewRectangle(rightRec.X+2, float32(y), rightRec.Width-14, 52)
 	ui.DrawCard(zCard, false, false)
-	e.UI.DrawTextBold(fmt.Sprintf("Profundidade Z-Index: %d", layer.ZIndex), int32(zCard.X)+14, int32(zCard.Y)+16, 13.5, ui.ColSkyBlue)
+	e.UI.DrawTextBold(fmt.Sprintf(i18n.T("label_zindex_depth"), layer.ZIndex), int32(zCard.X)+14, int32(zCard.Y)+16, 13.5, ui.ColSkyBlue)
 
 	zMinus := rl.NewRectangle(zCard.X+zCard.Width-84, zCard.Y+10, 36, 32)
 	zPlus := rl.NewRectangle(zCard.X+zCard.Width-44, zCard.Y+10, 36, 32)
@@ -917,13 +925,13 @@ func (e *EditorState) drawGeneralTab(rightRec rl.Rectangle, startY int32, layer 
 	// Position X & Y Sliders Card
 	posCard := rl.NewRectangle(rightRec.X+2, float32(y), rightRec.Width-14, 126)
 	ui.DrawCard(posCard, false, false)
-	e.UI.DrawTextBold("Posição no Canvas", int32(posCard.X)+14, int32(posCard.Y)+10, 13.5, ui.ColSkyBlue)
+	e.UI.DrawTextBold(i18n.T("label_canvas_position"), int32(posCard.X)+14, int32(posCard.Y)+10, 13.5, ui.ColSkyBlue)
 
-	e.UI.DrawText(fmt.Sprintf("Posição X: %.1f px", layer.Pos.X), int32(posCard.X)+14, int32(posCard.Y)+34, 11.5, ui.ColTextBody)
+	e.UI.DrawText(fmt.Sprintf(i18n.T("label_pos_x"), layer.Pos.X), int32(posCard.X)+14, int32(posCard.Y)+34, 11.5, ui.ColTextBody)
 	posXRec := rl.NewRectangle(posCard.X+14, posCard.Y+52, posCard.Width-28, 10)
 	layer.Pos.X = e.UI.DrawSliderControl(posXRec, layer.Pos.X, -300.0, 300.0, mousePos, ui.ColSkyBlue)
 
-	e.UI.DrawText(fmt.Sprintf("Posição Y: %.1f px", layer.Pos.Y), int32(posCard.X)+14, int32(posCard.Y)+78, 11.5, ui.ColTextBody)
+	e.UI.DrawText(fmt.Sprintf(i18n.T("label_pos_y"), layer.Pos.Y), int32(posCard.X)+14, int32(posCard.Y)+78, 11.5, ui.ColTextBody)
 	posYRec := rl.NewRectangle(posCard.X+14, posCard.Y+96, posCard.Width-28, 10)
 	layer.Pos.Y = e.UI.DrawSliderControl(posYRec, layer.Pos.Y, -300.0, 300.0, mousePos, ui.ColSkyBlue)
 
@@ -932,13 +940,13 @@ func (e *EditorState) drawGeneralTab(rightRec rl.Rectangle, startY int32, layer 
 	// Pivot Offset Card
 	pivotCard := rl.NewRectangle(rightRec.X+2, float32(y), rightRec.Width-14, 126)
 	ui.DrawCard(pivotCard, false, false)
-	e.UI.DrawTextBold("Pivô de Rotação (Offset)", int32(pivotCard.X)+14, int32(pivotCard.Y)+10, 13.5, ui.ColSkyBlue)
+	e.UI.DrawTextBold(i18n.T("label_pivot_offset"), int32(pivotCard.X)+14, int32(pivotCard.Y)+10, 13.5, ui.ColSkyBlue)
 
-	e.UI.DrawText(fmt.Sprintf("Pivô X: %.1f px", layer.Offset.X), int32(pivotCard.X)+14, int32(pivotCard.Y)+34, 11.5, ui.ColTextBody)
+	e.UI.DrawText(fmt.Sprintf(i18n.T("label_pivot_x"), layer.Offset.X), int32(pivotCard.X)+14, int32(pivotCard.Y)+34, 11.5, ui.ColTextBody)
 	offXRec := rl.NewRectangle(pivotCard.X+14, pivotCard.Y+52, pivotCard.Width-28, 10)
 	layer.Offset.X = e.UI.DrawSliderControl(offXRec, layer.Offset.X, -200.0, 200.0, mousePos, ui.ColSkyBlue)
 
-	e.UI.DrawText(fmt.Sprintf("Pivô Y: %.1f px", layer.Offset.Y), int32(pivotCard.X)+14, int32(pivotCard.Y)+78, 11.5, ui.ColTextBody)
+	e.UI.DrawText(fmt.Sprintf(i18n.T("label_pivot_y"), layer.Offset.Y), int32(pivotCard.X)+14, int32(pivotCard.Y)+78, 11.5, ui.ColTextBody)
 	offYRec := rl.NewRectangle(pivotCard.X+14, pivotCard.Y+96, pivotCard.Width-28, 10)
 	layer.Offset.Y = e.UI.DrawSliderControl(offYRec, layer.Offset.Y, -200.0, 200.0, mousePos, ui.ColSkyBlue)
 
@@ -947,13 +955,13 @@ func (e *EditorState) drawGeneralTab(rightRec rl.Rectangle, startY int32, layer 
 	// Parent Node Selection Card
 	pCard := rl.NewRectangle(rightRec.X+2, float32(y), rightRec.Width-14, 80)
 	ui.DrawCard(pCard, false, false)
-	parentName := "Pivot Central (Raiz)"
+	parentName := i18n.T("label_root_pivot")
 	if layer.ParentID != nil && *layer.ParentID != 0 {
 		if p := e.Avatar.GetLayer(*layer.ParentID); p != nil {
 			parentName = filepath.Base(p.Path)
 		}
 	}
-	e.UI.DrawTextBold(fmt.Sprintf("Pai Atual: %s", parentName), int32(pCard.X)+14, int32(pCard.Y)+12, 13.5, ui.ColSkyBlue)
+	e.UI.DrawTextBold(fmt.Sprintf(i18n.T("label_current_parent"), parentName), int32(pCard.X)+14, int32(pCard.Y)+12, 13.5, ui.ColSkyBlue)
 
 	pBtn := rl.NewRectangle(pCard.X+14, pCard.Y+40, pCard.Width-28, 30)
 	if rl.CheckCollisionPointRec(mousePos, pBtn) {
@@ -965,7 +973,7 @@ func (e *EditorState) drawGeneralTab(rightRec rl.Rectangle, startY int32, layer 
 		rl.DrawRectangleRounded(pBtn, 0.35, 4, ui.ColCardBg)
 	}
 	rl.DrawRectangleRoundedLines(pBtn, 0.35, 4, ui.ColPanelBorder)
-	e.UI.DrawTextBold("▶ Trocar Camada Pai", int32(pBtn.X)+int32(pBtn.Width/2)-60, int32(pBtn.Y)+7, 12, ui.ColWhite)
+	e.UI.DrawTextBold(i18n.T("btn_change_parent"), int32(pBtn.X)+int32(pBtn.Width/2)-60, int32(pBtn.Y)+7, 12, ui.ColWhite)
 }
 
 func (e *EditorState) cycleParentLayer(layer *model.Layer) {
@@ -1002,15 +1010,15 @@ func (e *EditorState) drawVisibilityTab(rightRec rl.Rectangle, startY int32, lay
 	// Blink Card (Generous breathing room)
 	blinkCard := rl.NewRectangle(rightRec.X+2, float32(y), rightRec.Width-14, 86)
 	ui.DrawCard(blinkCard, false, false)
-	e.UI.DrawTextBold("Modo de Piscar (Blink)", int32(blinkCard.X)+14, int32(blinkCard.Y)+10, 13.5, ui.ColSkyBlue)
+	e.UI.DrawTextBold(i18n.T("label_vis_blink"), int32(blinkCard.X)+14, int32(blinkCard.Y)+10, 13.5, ui.ColSkyBlue)
 
 	blinkOpts := []struct {
 		val  int
 		name string
 	}{
-		{0, "Sempre"},
-		{1, "Abertos"},
-		{2, "Piscando"},
+		{0, i18n.T("opt_vis_always")},
+		{1, i18n.T("opt_vis_eyes_open")},
+		{2, i18n.T("opt_vis_eyes_closed")},
 	}
 
 	bW := (blinkCard.Width - 28 - 12) / 3
@@ -1032,15 +1040,15 @@ func (e *EditorState) drawVisibilityTab(rightRec rl.Rectangle, startY int32, lay
 	// Talk Card (Generous breathing room)
 	talkCard := rl.NewRectangle(rightRec.X+2, float32(y), rightRec.Width-14, 86)
 	ui.DrawCard(talkCard, false, false)
-	e.UI.DrawTextBold("Modo de Fala (Talk / VAD)", int32(talkCard.X)+14, int32(talkCard.Y)+10, 13.5, ui.ColSkyBlue)
+	e.UI.DrawTextBold(i18n.T("label_vis_talk"), int32(talkCard.X)+14, int32(talkCard.Y)+10, 13.5, ui.ColSkyBlue)
 
 	talkOpts := []struct {
 		val  int
 		name string
 	}{
-		{0, "Sempre"},
-		{1, "Silêncio"},
-		{2, "Falando"},
+		{0, i18n.T("opt_vis_always")},
+		{1, i18n.T("opt_vis_talk_quiet")},
+		{2, i18n.T("opt_vis_talk_speaking")},
 	}
 
 	for i, opt := range talkOpts {
@@ -1061,7 +1069,7 @@ func (e *EditorState) drawVisibilityTab(rightRec rl.Rectangle, startY int32, lay
 	// Costumes Card
 	costumeCard := rl.NewRectangle(rightRec.X+2, float32(y), rightRec.Width-14, 116)
 	ui.DrawCard(costumeCard, false, false)
-	e.UI.DrawTextBold("Ativo nos Figurinos (1 a 10)", int32(costumeCard.X)+14, int32(costumeCard.Y)+10, 13.5, ui.ColSkyBlue)
+	e.UI.DrawTextBold(i18n.T("label_costumes_visibility"), int32(costumeCard.X)+14, int32(costumeCard.Y)+10, 13.5, ui.ColSkyBlue)
 
 	cBtnW := (costumeCard.Width - 28 - 4*6) / 5
 	for i := 1; i <= 10; i++ {
@@ -1096,13 +1104,13 @@ func (e *EditorState) drawPhysicsTab(rightRec rl.Rectangle, startY int32, layer 
 	// Wobble & Damping Card
 	wobCard := rl.NewRectangle(rightRec.X+2, float32(y), rightRec.Width-14, 146)
 	ui.DrawCard(wobCard, false, false)
-	e.UI.DrawTextBold("Inércia e Amortecimento (Wobble)", int32(wobCard.X)+14, int32(wobCard.Y)+10, 13.5, ui.ColSkyBlue)
+	e.UI.DrawTextBold(i18n.T("label_wobble_inertia"), int32(wobCard.X)+14, int32(wobCard.Y)+10, 13.5, ui.ColSkyBlue)
 
-	e.UI.DrawText(fmt.Sprintf("Arrasto Angular (Inércia): %.2f", layer.RotDrag), int32(wobCard.X)+14, int32(wobCard.Y)+34, 11.5, ui.ColTextBody)
+	e.UI.DrawText(fmt.Sprintf(i18n.T("label_rot_drag_val"), layer.RotDrag), int32(wobCard.X)+14, int32(wobCard.Y)+34, 11.5, ui.ColTextBody)
 	rdRec := rl.NewRectangle(wobCard.X+14, wobCard.Y+52, wobCard.Width-28, 10)
 	layer.RotDrag = e.UI.DrawSliderControl(rdRec, layer.RotDrag, 0.0, 1.0, mousePos, ui.ColSkyBlue)
 
-	e.UI.DrawText(fmt.Sprintf("Limite de Rotação: [%.0f° a %.0f°]", layer.RLimitMin, layer.RLimitMax), int32(wobCard.X)+14, int32(wobCard.Y)+80, 11.5, ui.ColTextBody)
+	e.UI.DrawText(fmt.Sprintf(i18n.T("label_rot_limit_val"), layer.RLimitMin, layer.RLimitMax), int32(wobCard.X)+14, int32(wobCard.Y)+80, 11.5, ui.ColTextBody)
 	clampRec := rl.NewRectangle(wobCard.X+14, wobCard.Y+100, wobCard.Width-28, 10)
 	angle := e.UI.DrawSliderControl(clampRec, layer.RLimitMax, 0.0, 90.0, mousePos, ui.ColSkyBlue)
 	layer.RLimitMin = -angle
@@ -1113,19 +1121,19 @@ func (e *EditorState) drawPhysicsTab(rightRec rl.Rectangle, startY int32, layer 
 	// Breathing & Stretch Card
 	breathCard := rl.NewRectangle(rightRec.X+2, float32(y), rightRec.Width-14, 186)
 	ui.DrawCard(breathCard, false, false)
-	e.UI.DrawTextBold("Respiração e Elasticidade", int32(breathCard.X)+14, int32(breathCard.Y)+10, 13.5, ui.ColSkyBlue)
+	e.UI.DrawTextBold(i18n.T("label_breathing_stretch"), int32(breathCard.X)+14, int32(breathCard.Y)+10, 13.5, ui.ColSkyBlue)
 
-	e.UI.DrawText(fmt.Sprintf("Oscilação Idle (YAmp): %.1f px", layer.YAmp), int32(breathCard.X)+14, int32(breathCard.Y)+34, 11.5, ui.ColTextBody)
+	e.UI.DrawText(fmt.Sprintf(i18n.T("label_idle_wave_val"), layer.YAmp), int32(breathCard.X)+14, int32(breathCard.Y)+34, 11.5, ui.ColTextBody)
 	ampRec := rl.NewRectangle(breathCard.X+14, breathCard.Y+52, breathCard.Width-28, 10)
 	layer.YAmp = e.UI.DrawSliderControl(ampRec, layer.YAmp, 0.0, 30.0, mousePos, ui.ColSkyBlue)
 	layer.YFrq = 1.5
 
-	e.UI.DrawText(fmt.Sprintf("Elasticidade (Stretch): %.2f", layer.StretchAmount), int32(breathCard.X)+14, int32(breathCard.Y)+80, 11.5, ui.ColTextBody)
+	e.UI.DrawText(fmt.Sprintf(i18n.T("label_stretch_val"), layer.StretchAmount), int32(breathCard.X)+14, int32(breathCard.Y)+80, 11.5, ui.ColTextBody)
 	strRec := rl.NewRectangle(breathCard.X+14, breathCard.Y+100, breathCard.Width-28, 10)
 	layer.StretchAmount = e.UI.DrawSliderControl(strRec, layer.StretchAmount, 0.0, 2.0, mousePos, ui.ColSkyBlue)
 
 	toggleRec := rl.NewRectangle(breathCard.X+14, breathCard.Y+136, breathCard.Width-28, 28)
-	layer.IgnoreBounce = e.UI.DrawToggle(toggleRec, "Ignorar Salto Global (Ignore Bounce)", layer.IgnoreBounce, mousePos)
+	layer.IgnoreBounce = e.UI.DrawToggle(toggleRec, i18n.T("label_ignore_bounce"), layer.IgnoreBounce, mousePos)
 }
 
 func (e *EditorState) drawSpriteTab(rightRec rl.Rectangle, startY int32, layer *model.Layer, mousePos rl.Vector2) {
@@ -1133,9 +1141,9 @@ func (e *EditorState) drawSpriteTab(rightRec rl.Rectangle, startY int32, layer *
 
 	spriteCard := rl.NewRectangle(rightRec.X+2, float32(y), rightRec.Width-14, 166)
 	ui.DrawCard(spriteCard, false, false)
-	e.UI.DrawTextBold("Configuração de SpriteSheet", int32(spriteCard.X)+14, int32(spriteCard.Y)+10, 13.5, ui.ColSkyBlue)
+	e.UI.DrawTextBold(i18n.T("label_spritesheet_config"), int32(spriteCard.X)+14, int32(spriteCard.Y)+10, 13.5, ui.ColSkyBlue)
 
-	e.UI.DrawTextBold(fmt.Sprintf("Quadros (Frames): %d", layer.Frames), int32(spriteCard.X)+14, int32(spriteCard.Y)+38, 12.5, ui.ColTextBody)
+	e.UI.DrawTextBold(fmt.Sprintf(i18n.T("label_frames_val"), layer.Frames), int32(spriteCard.X)+14, int32(spriteCard.Y)+38, 12.5, ui.ColTextBody)
 	fMinus := rl.NewRectangle(spriteCard.X+spriteCard.Width-84, spriteCard.Y+30, 36, 32)
 	fPlus := rl.NewRectangle(spriteCard.X+spriteCard.Width-44, spriteCard.Y+30, 36, 32)
 
@@ -1161,7 +1169,7 @@ func (e *EditorState) drawSpriteTab(rightRec rl.Rectangle, startY int32, layer *
 	rl.DrawRectangleRoundedLines(fPlus, 0.35, 4, ui.ColPanelBorder)
 	e.UI.DrawTextBold("+", int32(fPlus.X)+13, int32(fPlus.Y)+7, 16, ui.ColWhite)
 
-	e.UI.DrawText(fmt.Sprintf("Velocidade da Animação: %.1f FPS", layer.AnimSpeed), int32(spriteCard.X)+14, int32(spriteCard.Y)+84, 11.5, ui.ColTextBody)
+	e.UI.DrawText(fmt.Sprintf(i18n.T("label_anim_speed_val"), layer.AnimSpeed), int32(spriteCard.X)+14, int32(spriteCard.Y)+84, 11.5, ui.ColTextBody)
 	fpsRec := rl.NewRectangle(spriteCard.X+14, spriteCard.Y+108, spriteCard.Width-28, 10)
 	layer.AnimSpeed = e.UI.DrawSliderControl(fpsRec, layer.AnimSpeed, 0.0, 30.0, mousePos, ui.ColSkyBlue)
 }
