@@ -84,7 +84,7 @@ jobs:
 
       - name: Build Linux Binary
         run: |
-          go build -ldflags="-s -w -X 'pngtuber-lite/pkg/updater.CurrentVersion=${{ steps.version.outputs.tag }}' -Wl,--allow-multiple-definition" -o pngtuber-lite main.go
+          go build -ldflags="-s -w -X 'pngtuber-lite/pkg/updater.CurrentVersion=${{ steps.version.outputs.tag }}'" -o pngtuber-lite main.go
 
       - name: Package Linux Release
         run: |
