@@ -25,9 +25,14 @@ type Layer struct {
 	ShowBlink      int      `json:"showBlink"` // 0: always, 1: only blinking, 2: only not blinking
 	ShowTalk       int      `json:"showTalk"`  // 0: always, 1: only talking, 2: only not talking
 	CostumeLayers  [10]int  `json:"costumeLayers"`
-	ImageData      []byte   `json:"-"`
-	ImageWidth     int      `json:"-"`
-	ImageHeight    int      `json:"-"`
+	ImageData        []byte   `json:"-"`
+	ImageWidth       int      `json:"-"`
+	ImageHeight      int      `json:"-"`
+	ContentMinX      float32  `json:"-"`
+	ContentMinY      float32  `json:"-"`
+	ContentMaxX      float32  `json:"-"`
+	ContentMaxY      float32  `json:"-"`
+	HasContentBounds bool     `json:"-"`
 }
 
 // NewDefaultLayer creates a layer with standard default values.
@@ -42,6 +47,19 @@ func NewDefaultLayer(id int64) *Layer {
 		RLimitMax:      180,
 		CostumeLayers:  [10]int{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
 	}
+}
+
+// UpdateContentBounds scans the non-transparent alpha pixel boundary of this layer.
+func (l *Layer) UpdateContentBounds() {
+	if len(l.ImageData) == 0 {
+		return
+	}
+	minX, minY, maxX, maxY, found := CalculateContentBounds(l.ImageData, l.Frames)
+	l.ContentMinX = minX
+	l.ContentMinY = minY
+	l.ContentMaxX = maxX
+	l.ContentMaxY = maxY
+	l.HasContentBounds = found
 }
 
 // IsVisible determines whether this layer should be rendered based on:

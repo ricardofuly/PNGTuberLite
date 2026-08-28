@@ -40,14 +40,13 @@ var IconPhysicsPNG []byte
 //go:embed icons/keys.png
 var IconKeysPNG []byte
 
-//go:embed icons/logo.png
+//go:embed icons/logo-256x256.png
 var AppLogoPNG []byte
 
-//go:embed icons/icon.ico
-var AppIconICO []byte
-
-//go:embed icons/tray.png
+//go:embed icons/logo-32x32.png
 var AppTrayPNG []byte
+
+var AppIconICO = AppTrayPNG
 
 //go:embed icons/obs.png
 var IconOBSPNG []byte
@@ -81,3 +80,10 @@ var IconSettingsPNG []byte
 
 //go:embed icons/update.png
 var IconUpdatePNG []byte
+
+//go:embed fonts/font.ttf
+var RegularFontTTF []byte
+
+//go:embed fonts/font_bold.ttf
+var BoldFontTTF []byte
+

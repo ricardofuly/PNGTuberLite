@@ -57,6 +57,18 @@ func (tc *TextureCache) GetTexture(layerID int64) (rl.Texture2D, bool) {
 	return tex, ok
 }
 
+// UnloadTexture frees a single GPU texture from VRAM by layer ID.
+func (tc *TextureCache) UnloadTexture(layerID int64) {
+	if !rl.IsWindowReady() {
+		delete(tc.textures, layerID)
+		return
+	}
+	if tex, ok := tc.textures[layerID]; ok {
+		rl.UnloadTexture(tex)
+		delete(tc.textures, layerID)
+	}
+}
+
 // UnloadAll frees all allocated GPU textures from VRAM.
 func (tc *TextureCache) UnloadAll() {
 	if !rl.IsWindowReady() {

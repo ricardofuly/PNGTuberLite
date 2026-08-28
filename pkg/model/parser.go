@@ -237,6 +237,7 @@ func parseLayer(data json.RawMessage) (*Layer, error) {
 		w, h := ExtractPNGDimensions(imgBytes)
 		layer.ImageWidth = w
 		layer.ImageHeight = h
+		layer.UpdateContentBounds()
 	}
 
 	return layer, nil

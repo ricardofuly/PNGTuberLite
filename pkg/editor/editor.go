@@ -22,27 +22,45 @@ const (
 	TabLayerSprite
 )
 
+// TreeItem represents a node in the hierarchical layer tree.
+type TreeItem struct {
+	Layer       *model.Layer // nil when IsRootNode is true
+	IsRootNode  bool
+	Depth       int
+	IsLastChild bool
+}
+
 // EditorState manages the avatar visual editor.
 type EditorState struct {
-	IsOpen            bool
-	Avatar            *model.Avatar
-	SelectedLayerID   int64
-	AvatarFilePath    string
-	StatusMessage     string
-	StatusTimer       float32
-	ActiveTab         EditorTab
-	TextureCache      *render.TextureCache
-	UI                *ui.UIState
+	IsOpen                bool
+	Avatar                *model.Avatar
+	SelectedLayerID       int64 // 0 = Root / Pivot Central
+	AvatarFilePath        string
+	StatusMessage         string
+	StatusTimer           float32
+	ActiveTab             EditorTab
+	TextureCache          *render.TextureCache
+	UI                    *ui.UIState
+
+	// Scroll state
+	LeftScrollOffset      float32
+	RightScrollOffset     float32
+	IsDraggingLeftScroll  bool
+	IsDraggingRightScroll bool
+	LeftScrollDragStartY  float32
+	RightScrollDragStartY float32
+	LeftScrollStartOffset float32
+	RightScrollStartOffset float32
 
 	// Gizmo interaction
-	IsDraggingPos     bool
-	IsDraggingPivot   bool
-	DragStartMouse    rl.Vector2
-	DragStartLayerPos model.Vector2
-	DragStartPivot    model.Vector2
+	IsDraggingPos         bool
+	IsDraggingPivot       bool
+	DragStartMouse        rl.Vector2
+	DragStartLayerPos     model.Vector2
+	DragStartPivot        model.Vector2
 
 	// Callbacks
-	OnAvatarModified  func()
+	OnAvatarModified      func()
 }
 
 // NewEditorState creates an editor instance.
@@ -64,7 +82,7 @@ func (e *EditorState) SetAvatar(avatar *model.Avatar, filePath string) {
 		e.AvatarFilePath = filePath
 	}
 	if avatar != nil && len(avatar.Layers) > 0 {
-		if _, exists := avatar.Layers[e.SelectedLayerID]; !exists {
+		if _, exists := avatar.Layers[e.SelectedLayerID]; !exists && e.SelectedLayerID != 0 {
 			for id := range avatar.Layers {
 				e.SelectedLayerID = id
 				break
@@ -78,7 +96,7 @@ func (e *EditorState) NewBlankAvatar() {
 	e.Avatar = model.NewAvatar()
 	e.SelectedLayerID = 0
 	e.AvatarFilePath = "assets/samples/novo_avatar.save"
-	e.SetStatus("Novo avatar criado. Arraste arquivos .png para adicionar camadas!")
+	e.SetStatus("Novo avatar criado. Clique no botão de imagem para importar .png!")
 	if e.OnAvatarModified != nil {
 		e.OnAvatarModified()
 	}
@@ -115,8 +133,9 @@ func (e *EditorState) AddLayerFromPNG(filePath string) error {
 	layer.ImageWidth = w
 	layer.ImageHeight = h
 	layer.ZIndex = 0
+	layer.UpdateContentBounds()
 
-	// Set parent to currently selected layer if any
+	// Set parent to currently selected layer if any (and not Root)
 	if e.SelectedLayerID != 0 && e.Avatar.GetLayer(e.SelectedLayerID) != nil {
 		pID := e.SelectedLayerID
 		layer.ParentID = &pID
@@ -152,16 +171,15 @@ func (e *EditorState) RemoveSelectedLayer() {
 	name := layer.Path
 	e.Avatar.RemoveLayer(e.SelectedLayerID)
 	e.Avatar.BuildHierarchy()
+	e.TextureCache.UnloadTexture(e.SelectedLayerID)
 
-	// Select next available layer
+	// Default back to Root Node
 	e.SelectedLayerID = 0
-	for id := range e.Avatar.Layers {
-		e.SelectedLayerID = id
-		break
+	if len(e.Avatar.DrawOrder) > 0 {
+		e.SelectedLayerID = e.Avatar.DrawOrder[0].Identification
 	}
 
-	_ = e.TextureCache.LoadAvatarTextures(e.Avatar)
-	e.SetStatus(fmt.Sprintf("Camada %q removida.", name))
+	e.SetStatus(fmt.Sprintf("Camada %q excluída.", name))
 	if e.OnAvatarModified != nil {
 		e.OnAvatarModified()
 	}
@@ -172,75 +190,114 @@ func (e *EditorState) DuplicateSelectedLayer() {
 	if e.Avatar == nil || e.SelectedLayerID == 0 {
 		return
 	}
-	orig := e.Avatar.GetLayer(e.SelectedLayerID)
-	if orig == nil {
+
+	src := e.Avatar.GetLayer(e.SelectedLayerID)
+	if src == nil {
 		return
 	}
 
 	id := time.Now().UnixNano() / 1000000
-	clone := *orig
-	clone.Identification = id
-	clone.Path = fmt.Sprintf("copia_%s", orig.Path)
-	clone.Pos.X += 20
-	clone.Pos.Y += 20
+	dup := model.NewDefaultLayer(id)
+	dup.Path = src.Path + "_copia"
+	dup.ImageData = src.ImageData
+	dup.ImageWidth = src.ImageWidth
+	dup.ImageHeight = src.ImageHeight
+	dup.ContentMinX = src.ContentMinX
+	dup.ContentMinY = src.ContentMinY
+	dup.ContentMaxX = src.ContentMaxX
+	dup.ContentMaxY = src.ContentMaxY
+	dup.HasContentBounds = src.HasContentBounds
+	dup.Pos = model.Vector2{X: src.Pos.X + 15, Y: src.Pos.Y + 15}
+	dup.Offset = src.Offset
+	dup.ZIndex = src.ZIndex + 1
+	dup.ParentID = src.ParentID
+	dup.ShowBlink = src.ShowBlink
+	dup.ShowTalk = src.ShowTalk
+	dup.CostumeLayers = src.CostumeLayers
+	dup.RotDrag = src.RotDrag
+	dup.RLimitMin = src.RLimitMin
+	dup.RLimitMax = src.RLimitMax
+	dup.StretchAmount = src.StretchAmount
+	dup.Frames = src.Frames
+	dup.AnimSpeed = src.AnimSpeed
 
-	e.Avatar.AddLayer(&clone)
+	e.Avatar.AddLayer(dup)
 	e.Avatar.BuildHierarchy()
 	e.SelectedLayerID = id
 
-	_ = e.TextureCache.LoadAvatarTextures(e.Avatar)
-	e.SetStatus("Camada duplicada!")
+	if err := e.TextureCache.LoadAvatarTextures(e.Avatar); err != nil {
+		e.SetStatus(fmt.Sprintf("Erro ao carregar textura: %v", err))
+		return
+	}
+
+	e.SetStatus(fmt.Sprintf("Camada %q duplicada com sucesso!", src.Path))
 	if e.OnAvatarModified != nil {
 		e.OnAvatarModified()
 	}
 }
 
-// SaveCurrentAvatar writes the avatar to disk.
+// SaveCurrentAvatar exports the active avatar to the save file path.
 func (e *EditorState) SaveCurrentAvatar() error {
-	if e.Avatar == nil || len(e.Avatar.Layers) == 0 {
-		return fmt.Errorf("avatar vazio")
+	if e.Avatar == nil {
+		return fmt.Errorf("nenhum avatar carregado")
 	}
 
-	if err := model.SaveAvatarToFile(e.Avatar, e.AvatarFilePath); err != nil {
+	targetPath := e.AvatarFilePath
+	if targetPath == "" {
+		targetPath = "assets/samples/meu_avatar.save"
+	}
+
+	dir := filepath.Dir(targetPath)
+	if dir != "" && dir != "." {
+		_ = os.MkdirAll(dir, 0755)
+	}
+
+	if err := model.SaveAvatarToFile(e.Avatar, targetPath); err != nil {
 		e.SetStatus(fmt.Sprintf("Erro ao salvar: %v", err))
 		return err
 	}
 
-	e.SetStatus(fmt.Sprintf("Avatar salvo com sucesso em: %s", e.AvatarFilePath))
-	if e.UI != nil {
-		e.UI.ScanAvatars()
+	e.SetStatus(fmt.Sprintf("Avatar salvo com sucesso em %q!", targetPath))
+	if e.OnAvatarModified != nil {
+		e.OnAvatarModified()
 	}
 	return nil
 }
 
-// HandleFileDrops processes dropped files (.png for new layers, .save to open avatar).
+// HandleFileDrops detects drag-and-dropped PNG files onto the application window.
 func (e *EditorState) HandleFileDrops() {
 	if !rl.IsFileDropped() {
 		return
 	}
 
-	droppedFiles := rl.LoadDroppedFiles()
+	files := rl.LoadDroppedFiles()
 	defer rl.UnloadDroppedFiles()
 
-	for _, file := range droppedFiles {
-		ext := strings.ToLower(filepath.Ext(file))
+	importedCount := 0
+	for _, f := range files {
+		ext := strings.ToLower(filepath.Ext(f))
 		if ext == ".png" {
-			_ = e.AddLayerFromPNG(file)
+			if err := e.AddLayerFromPNG(f); err == nil {
+				importedCount++
+			}
 		} else if ext == ".save" {
-			av, err := model.ParseSaveFile(file)
-			if err == nil {
-				e.SetAvatar(av, file)
+			if av, err := model.ParseSaveFile(f); err == nil {
+				e.SetAvatar(av, f)
 				_ = e.TextureCache.LoadAvatarTextures(av)
-				e.SetStatus(fmt.Sprintf("Avatar carregado: %s", filepath.Base(file)))
+				e.SetStatus(fmt.Sprintf("Avatar %q carregado do arquivo .save!", filepath.Base(f)))
 				if e.OnAvatarModified != nil {
 					e.OnAvatarModified()
 				}
 			}
 		}
 	}
+
+	if importedCount > 0 {
+		e.SetStatus(fmt.Sprintf("%d camada(s) PNG importada(s) com sucesso!", importedCount))
+	}
 }
 
-// Update advances the editor status timer and handles interactions.
+// Update ticks timers and file drops.
 func (e *EditorState) Update(dt float32) {
 	if e.StatusTimer > 0 {
 		e.StatusTimer -= dt
@@ -252,166 +309,348 @@ func (e *EditorState) Update(dt float32) {
 	e.HandleFileDrops()
 }
 
+// buildTreeItems traverses the avatar hierarchy and builds a flattened list of tree nodes.
+func (e *EditorState) buildTreeItems() []*TreeItem {
+	items := make([]*TreeItem, 0)
+
+	// 1. Root Pivot Item (Index 0)
+	items = append(items, &TreeItem{
+		IsRootNode: true,
+		Depth:      0,
+	})
+
+	if e.Avatar == nil || len(e.Avatar.Layers) == 0 {
+		return items
+	}
+
+	// 2. Recursive branch traversal
+	var addBranch func(layer *model.Layer, depth int, isLast bool)
+	addBranch = func(layer *model.Layer, depth int, isLast bool) {
+		items = append(items, &TreeItem{
+			Layer:       layer,
+			Depth:       depth,
+			IsLastChild: isLast,
+		})
+
+		children := e.Avatar.GetChildren(layer.Identification)
+		for i, child := range children {
+			addBranch(child, depth+1, i == len(children)-1)
+		}
+	}
+
+	for i, root := range e.Avatar.RootLayers {
+		addBranch(root, 1, i == len(e.Avatar.RootLayers)-1)
+	}
+
+	// 3. Fallback for any orphan layers
+	included := make(map[int64]bool)
+	for _, it := range items {
+		if it.Layer != nil {
+			included[it.Layer.Identification] = true
+		}
+	}
+	for _, l := range e.Avatar.DrawOrder {
+		if !included[l.Identification] {
+			items = append(items, &TreeItem{
+				Layer: l,
+				Depth: 1,
+			})
+		}
+	}
+
+	return items
+}
+
 // Draw renders the visual editor overlay (left layer tree, right properties panel, and central gizmo).
 func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 	if !e.IsOpen {
 		return
 	}
 
-	screenW := int32(rl.GetScreenWidth())
-	screenH := int32(rl.GetScreenHeight())
+	screenW := float32(rl.GetScreenWidth())
+	screenH := float32(rl.GetScreenHeight())
 	mousePos := rl.GetMousePosition()
 
 	// 1. Top Header Bar
-	headerRec := rl.NewRectangle(0, 0, float32(screenW), 44)
-	rl.DrawRectangleRec(headerRec, rl.NewColor(15, 18, 28, 250))
-	rl.DrawLine(0, 44, screenW, 44, rl.NewColor(45, 60, 95, 255))
+	headerRec := rl.NewRectangle(0, 0, screenW, 48)
+	rl.DrawRectangleRec(headerRec, ui.ColPanelBg)
+	rl.DrawLine(0, 48, int32(screenW), 48, ui.ColPanelBorder)
 
-	ui.GlobalIcons.DrawIcon(ui.IconEditor, 16, 12, 18, rl.SkyBlue)
-	e.UI.DrawText("EDITOR DE AVATAR (PNGTuber Lite)", 40, 12, 16, rl.SkyBlue)
+	ui.GlobalIcons.DrawIcon(ui.IconEditor, 16, 14, 20, ui.ColSkyBlue)
+	e.UI.DrawTextBold("EDITOR DE AVATAR (PNGTuber Lite)", 46, 15, 15, ui.ColTextTitle)
 
-	// Save Button
-	saveBtnRec := rl.NewRectangle(float32(screenW)-250, 7, 110, 30)
+	// Save Button (Pill with generous breathing room)
+	saveBtnRec := rl.NewRectangle(screenW-265, 7, 120, 34)
 	saveHovered := rl.CheckCollisionPointRec(mousePos, saveBtnRec)
-	saveBg := rl.NewColor(35, 110, 65, 255)
+	saveBg := rl.NewColor(30, 95, 55, 255)
 	if saveHovered {
-		saveBg = rl.NewColor(45, 140, 80, 255)
+		saveBg = rl.NewColor(40, 130, 75, 255)
 		if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
 			_ = e.SaveCurrentAvatar()
 		}
 	}
-	rl.DrawRectangleRounded(saveBtnRec, 0.25, 4, saveBg)
-	ui.GlobalIcons.DrawIcon(ui.IconSave, saveBtnRec.X+12, saveBtnRec.Y+6, 16, rl.Lime)
-	e.UI.DrawText("SALVAR", int32(saveBtnRec.X)+34, int32(saveBtnRec.Y)+7, 14, rl.RayWhite)
+	rl.DrawRectangleRounded(saveBtnRec, 0.45, 6, saveBg)
+	rl.DrawRectangleRoundedLines(saveBtnRec, 0.45, 6, ui.ColLime)
+	ui.GlobalIcons.DrawIcon(ui.IconSave, saveBtnRec.X+14, saveBtnRec.Y+8, 18, ui.ColWhite)
+	e.UI.DrawTextBold("SALVAR", int32(saveBtnRec.X)+40, int32(saveBtnRec.Y)+9, 12.5, ui.ColWhite)
 
-	// Close Editor Button
-	closeBtnRec := rl.NewRectangle(float32(screenW)-125, 7, 110, 30)
+	// Close Editor Button (Pill with generous breathing room)
+	closeBtnRec := rl.NewRectangle(screenW-135, 7, 120, 34)
 	closeHovered := rl.CheckCollisionPointRec(mousePos, closeBtnRec)
-	closeBg := rl.NewColor(120, 35, 45, 255)
+	closeBg := ui.ColCardBg
 	if closeHovered {
-		closeBg = rl.NewColor(150, 45, 60, 255)
+		closeBg = ui.ColCardHover
 		if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
 			e.IsOpen = false
 		}
 	}
-	rl.DrawRectangleRounded(closeBtnRec, 0.25, 4, closeBg)
-	ui.GlobalIcons.DrawIcon(ui.IconClose, closeBtnRec.X+12, closeBtnRec.Y+6, 16, rl.NewColor(255, 120, 120, 255))
-	e.UI.DrawText("FECHAR", int32(closeBtnRec.X)+34, int32(closeBtnRec.Y)+7, 14, rl.RayWhite)
+	rl.DrawRectangleRounded(closeBtnRec, 0.45, 6, closeBg)
+	rl.DrawRectangleRoundedLines(closeBtnRec, 0.45, 6, ui.ColPanelBorder)
+	ui.GlobalIcons.DrawIcon(ui.IconClose, closeBtnRec.X+14, closeBtnRec.Y+8, 18, ui.ColRed)
+	e.UI.DrawTextBold("FECHAR", int32(closeBtnRec.X)+40, int32(closeBtnRec.Y)+9, 12.5, ui.ColTextTitle)
 
 	// Status Notification Banner
 	if e.StatusMessage != "" {
-		bannerRec := rl.NewRectangle(float32(screenW/2)-200, 52, 400, 32)
-		rl.DrawRectangleRounded(bannerRec, 0.3, 4, rl.NewColor(20, 30, 48, 235))
-		rl.DrawRectangleRoundedLines(bannerRec, 0.3, 4, rl.SkyBlue)
-		e.UI.DrawText(e.StatusMessage, int32(bannerRec.X)+15, int32(bannerRec.Y)+8, 13, rl.Yellow)
+		bannerRec := rl.NewRectangle(screenW/2-210, 58, 420, 34)
+		rl.DrawRectangleRounded(bannerRec, 0.4, 4, ui.ColPanelBg)
+		rl.DrawRectangleRoundedLines(bannerRec, 0.4, 4, ui.ColSkyBlue)
+		e.UI.DrawTextBold(e.StatusMessage, int32(bannerRec.X)+16, int32(bannerRec.Y)+9, 12, ui.ColYellow)
 	}
 
 	// 2. Left Sidebar: Layer Hierarchy Tree
-	leftW := float32(280)
-	leftRec := rl.NewRectangle(12, 54, leftW, float32(screenH-66))
-	rl.DrawRectangleRounded(leftRec, 0.03, 6, rl.NewColor(16, 20, 30, 245))
-	rl.DrawRectangleRoundedLines(leftRec, 0.03, 6, rl.NewColor(45, 60, 90, 255))
+	leftW := float32(310)
+	leftRec := rl.NewRectangle(14, 58, leftW, screenH-72)
+	rl.DrawRectangleRounded(leftRec, 0.04, 6, ui.ColPanelBg)
+	rl.DrawRectangleRoundedLines(leftRec, 0.04, 6, ui.ColPanelBorder)
 
-	e.UI.DrawText("Camadas do Avatar:", int32(leftRec.X)+14, int32(leftRec.Y)+12, 15, rl.SkyBlue)
+	e.UI.DrawTextBold("Hierarquia de Camadas", int32(leftRec.X)+14, int32(leftRec.Y)+12, 14, ui.ColSkyBlue)
 
-	// Layer Action Buttons (+ PNG, + Novo, Duplicar, Deletar)
-	btnW := (leftW - 36) / 2
-	addPNGBtn := rl.NewRectangle(leftRec.X+12, leftRec.Y+36, btnW, 28)
-	if rl.CheckCollisionPointRec(mousePos, addPNGBtn) {
-		rl.DrawRectangleRounded(addPNGBtn, 0.2, 4, rl.NewColor(40, 85, 140, 255))
+	// Top Icon Toolbar (Import PNG, New Avatar, Duplicate, Delete) - Clean Icons Only!
+	toolGap := float32(6)
+	toolBtnW := (leftW - 24 - 3*toolGap) / 4
+	toolBtnH := float32(32)
+	toolY := leftRec.Y + 34
+
+	// 1. Import PNG (Icon Only)
+	pngBtn := rl.NewRectangle(leftRec.X+12, toolY, toolBtnW, toolBtnH)
+	pngHovered := rl.CheckCollisionPointRec(mousePos, pngBtn)
+	pngBg := ui.ColCardBg
+	if pngHovered {
+		pngBg = ui.ColCardHover
 		if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
-			e.SetStatus("Arraste qualquer arquivo .png para a janela!")
+			e.SetStatus("Arraste arquivos .png para a janela!")
 		}
-	} else {
-		rl.DrawRectangleRounded(addPNGBtn, 0.2, 4, rl.NewColor(28, 55, 95, 255))
 	}
-	ui.GlobalIcons.DrawIcon(ui.IconPNGFile, addPNGBtn.X+14, addPNGBtn.Y+6, 16, rl.SkyBlue)
-	e.UI.DrawText("PNG", int32(addPNGBtn.X)+36, int32(addPNGBtn.Y)+6, 13, rl.RayWhite)
+	rl.DrawRectangleRounded(pngBtn, 0.35, 4, pngBg)
+	rl.DrawRectangleRoundedLines(pngBtn, 0.35, 4, ui.ColPanelBorder)
+	ui.GlobalIcons.DrawIcon(ui.IconPNGFile, pngBtn.X+(toolBtnW-18)/2, pngBtn.Y+7, 18, ui.ColSkyBlue)
 
-	newAvBtn := rl.NewRectangle(leftRec.X+12+btnW+12, leftRec.Y+36, btnW, 28)
-	if rl.CheckCollisionPointRec(mousePos, newAvBtn) {
-		rl.DrawRectangleRounded(newAvBtn, 0.2, 4, rl.NewColor(50, 65, 95, 255))
+	// 2. New Avatar (Icon Only)
+	newBtn := rl.NewRectangle(leftRec.X+12+1*(toolBtnW+toolGap), toolY, toolBtnW, toolBtnH)
+	newHovered := rl.CheckCollisionPointRec(mousePos, newBtn)
+	newBg := ui.ColCardBg
+	if newHovered {
+		newBg = ui.ColCardHover
 		if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
 			e.NewBlankAvatar()
 		}
-	} else {
-		rl.DrawRectangleRounded(newAvBtn, 0.2, 4, rl.NewColor(32, 42, 65, 255))
 	}
-	ui.GlobalIcons.DrawIcon(ui.IconAdd, newAvBtn.X+14, newAvBtn.Y+6, 16, rl.Lime)
-	e.UI.DrawText("Novo", int32(newAvBtn.X)+36, int32(newAvBtn.Y)+6, 13, rl.RayWhite)
+	rl.DrawRectangleRounded(newBtn, 0.35, 4, newBg)
+	rl.DrawRectangleRoundedLines(newBtn, 0.35, 4, ui.ColPanelBorder)
+	ui.GlobalIcons.DrawIcon(ui.IconAdd, newBtn.X+(toolBtnW-18)/2, newBtn.Y+7, 18, ui.ColLime)
 
-	// Layers List Scroll / Stack
-	layerY := int32(leftRec.Y) + 74
-	if e.Avatar != nil {
-		for _, layer := range e.Avatar.DrawOrder {
+	// 3. Duplicate (Icon Only)
+	dupBtn := rl.NewRectangle(leftRec.X+12+2*(toolBtnW+toolGap), toolY, toolBtnW, toolBtnH)
+	dupHovered := rl.CheckCollisionPointRec(mousePos, dupBtn)
+	dupBg := ui.ColCardBg
+	if dupHovered {
+		dupBg = ui.ColCardHover
+		if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
+			e.DuplicateSelectedLayer()
+		}
+	}
+	rl.DrawRectangleRounded(dupBtn, 0.35, 4, dupBg)
+	rl.DrawRectangleRoundedLines(dupBtn, 0.35, 4, ui.ColPanelBorder)
+	ui.GlobalIcons.DrawIcon(ui.IconDuplicate, dupBtn.X+(toolBtnW-18)/2, dupBtn.Y+7, 18, ui.ColLavender)
+
+	// 4. Delete (Icon Only)
+	delBtn := rl.NewRectangle(leftRec.X+12+3*(toolBtnW+toolGap), toolY, toolBtnW, toolBtnH)
+	delHovered := rl.CheckCollisionPointRec(mousePos, delBtn)
+	delBg := ui.ColCardBg
+	if delHovered {
+		delBg = rl.NewColor(135, 35, 45, 255)
+		if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
+			e.RemoveSelectedLayer()
+		}
+	}
+	rl.DrawRectangleRounded(delBtn, 0.35, 4, delBg)
+	rl.DrawRectangleRoundedLines(delBtn, 0.35, 4, ui.ColPanelBorder)
+	ui.GlobalIcons.DrawIcon(ui.IconDelete, delBtn.X+(toolBtnW-18)/2, delBtn.Y+7, 18, ui.ColRed)
+
+	// Scrollable Layer Tree
+	layerViewRec := rl.NewRectangle(leftRec.X+10, leftRec.Y+74, leftW-20, leftRec.Height-86)
+	treeItems := e.buildTreeItems()
+	contentH := float32(len(treeItems)) * 42.0
+
+	// Handle left scroll
+	if rl.CheckCollisionPointRec(mousePos, layerViewRec) {
+		wheel := rl.GetMouseWheelMove()
+		if wheel != 0 {
+			e.LeftScrollOffset -= wheel * 36.0
+		}
+	}
+	maxScroll := contentH - layerViewRec.Height
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if e.LeftScrollOffset < 0 {
+		e.LeftScrollOffset = 0
+	}
+	if e.LeftScrollOffset > maxScroll {
+		e.LeftScrollOffset = maxScroll
+	}
+
+	rl.BeginScissorMode(int32(layerViewRec.X), int32(layerViewRec.Y), int32(layerViewRec.Width), int32(layerViewRec.Height))
+	itemY := layerViewRec.Y - e.LeftScrollOffset
+
+	for _, item := range treeItems {
+		if item.IsRootNode {
+			// Root / Pivot Central Node
+			isSelected := (e.SelectedLayerID == 0)
+			rootRec := rl.NewRectangle(layerViewRec.X+2, itemY, layerViewRec.Width-14, 38)
+			hovered := rl.CheckCollisionPointRec(mousePos, rootRec)
+
+			ui.DrawCard(rootRec, hovered, isSelected)
+			if isSelected {
+				rl.DrawRectangleRoundedLines(rootRec, 0.16, 4, ui.ColYellow)
+			}
+
+			ui.GlobalIcons.DrawIcon(ui.IconAvatar, rootRec.X+8, rootRec.Y+9, 18, ui.ColYellow)
+			e.UI.DrawTextBold("⭐ Pivot Central / Raiz", int32(rootRec.X)+32, int32(rootRec.Y)+10, 12.5, ui.ColYellow)
+			e.UI.DrawBadge(rootRec.X+rootRec.Width-56, rootRec.Y+9, "Raiz", ui.ColIconBoxBg, ui.ColOrange)
+
+			if hovered && rl.IsMouseButtonPressed(rl.MouseLeftButton) {
+				e.SelectedLayerID = 0
+			}
+		} else if item.Layer != nil {
+			layer := item.Layer
 			isSelected := (layer.Identification == e.SelectedLayerID)
-			itemRec := rl.NewRectangle(leftRec.X+12, float32(layerY), leftW-24, 34)
+			indent := float32(item.Depth) * 16.0
+			itemRec := rl.NewRectangle(layerViewRec.X+4+indent, itemY, layerViewRec.Width-14-indent, 38)
 			hovered := rl.CheckCollisionPointRec(mousePos, itemRec)
 
-			itemBg := rl.NewColor(26, 32, 46, 255)
-			itemTextCol := rl.LightGray
-			if isSelected {
-				itemBg = rl.NewColor(38, 90, 160, 255)
-				itemTextCol = rl.RayWhite
-			} else if hovered {
-				itemBg = rl.NewColor(38, 48, 70, 255)
+			// Draw Tree connector lines
+			lineX := layerViewRec.X + indent - 4
+			rl.DrawLineEx(rl.NewVector2(lineX, itemY-4), rl.NewVector2(lineX, itemY+19), 1.5, ui.ColPanelBorder)
+			rl.DrawLineEx(rl.NewVector2(lineX, itemY+19), rl.NewVector2(itemRec.X, itemY+19), 1.5, ui.ColPanelBorder)
+
+			ui.DrawCard(itemRec, hovered, isSelected)
+
+			displayName := filepath.Base(layer.Path)
+			maxLen := 17 - (item.Depth * 2)
+			if maxLen < 8 {
+				maxLen = 8
 			}
+			if len(displayName) > maxLen {
+				displayName = displayName[:maxLen] + "..."
+			}
+
+			textCol := ui.ColTextBody
+			if isSelected {
+				textCol = ui.ColWhite
+			}
+			e.UI.DrawTextBold(displayName, int32(itemRec.X)+8, int32(itemRec.Y)+10, 12, textCol)
+			e.UI.DrawBadge(itemRec.X+itemRec.Width-48, itemRec.Y+9, fmt.Sprintf("Z:%d", layer.ZIndex), ui.ColIconBoxBg, ui.ColTextMuted)
 
 			if hovered && rl.IsMouseButtonPressed(rl.MouseLeftButton) {
 				e.SelectedLayerID = layer.Identification
 			}
+		}
+		itemY += 42
+	}
+	rl.EndScissorMode()
 
-			rl.DrawRectangleRounded(itemRec, 0.2, 4, itemBg)
+	// Draw left scrollbar if content exceeds view
+	if contentH > layerViewRec.Height {
+		trackX := layerViewRec.X + layerViewRec.Width - 6
+		trackY := layerViewRec.Y + 2
+		trackH := layerViewRec.Height - 4
+		rl.DrawRectangleRounded(rl.NewRectangle(trackX, trackY, 5, trackH), 0.5, 4, ui.ColScrollTrack)
 
-			prefix := "• "
-			if layer.ParentID != nil && *layer.ParentID != 0 {
-				prefix = "  └ "
+		thumbH := (layerViewRec.Height / contentH) * trackH
+		if thumbH < 26 {
+			thumbH = 26
+		}
+		thumbY := trackY + (e.LeftScrollOffset/maxScroll)*(trackH-thumbH)
+		rl.DrawRectangleRounded(rl.NewRectangle(trackX, thumbY, 5, thumbH), 0.5, 4, ui.ColScrollThumb)
+	}
+
+	// 3. Right Sidebar: Layer Properties & Settings (Wider for full visibility tab room)
+	rightW := float32(400)
+	rightRec := rl.NewRectangle(screenW-rightW-14, 58, rightW, screenH-72)
+	rl.DrawRectangleRounded(rightRec, 0.04, 6, ui.ColPanelBg)
+	rl.DrawRectangleRoundedLines(rightRec, 0.04, 6, ui.ColPanelBorder)
+
+	// Direct Viewport Click Selection (Clicking on any layer's sprite in the viewport selects it)
+	viewportRec := rl.NewRectangle(leftRec.X+leftRec.Width+10, headerRec.Height+10, rightRec.X-(leftRec.X+leftRec.Width+20), screenH-headerRec.Height-20)
+	if e.Avatar != nil && rl.CheckCollisionPointRec(mousePos, viewportRec) && rl.IsMouseButtonPressed(rl.MouseLeftButton) && !e.IsDraggingPos {
+		transforms := render.ComputeWorldTransforms(e.Avatar, origin, scale, 0, nil, nil)
+		clickedLayerID := int64(-1)
+
+		for i := len(e.Avatar.DrawOrder) - 1; i >= 0; i-- {
+			l := e.Avatar.DrawOrder[i]
+			tex, ok := e.TextureCache.GetTexture(l.Identification)
+			if !ok || tex.Width == 0 {
+				continue
+			}
+			t, ok := transforms[l.Identification]
+			if !ok {
+				continue
 			}
 
-			displayName := filepath.Base(layer.Path)
-			if len(displayName) > 18 {
-				displayName = displayName[:18] + "..."
+			frames := l.Frames
+			if frames < 1 {
+				frames = 1
 			}
+			fW := float32(tex.Width) / float32(frames)
+			fH := float32(tex.Height)
+			destW := fW * t.Scale
+			destH := fH * t.Scale
+			pivot := rl.Vector2{
+				X: (destW * 0.5) - (l.Offset.X * t.Scale),
+				Y: (destH * 0.5) - (l.Offset.Y * t.Scale),
+			}
+			topLeftX := t.WorldPos.X - pivot.X
+			topLeftY := t.WorldPos.Y - pivot.Y
 
-			e.UI.DrawText(fmt.Sprintf("%s%s [Z:%d]", prefix, displayName, layer.ZIndex), int32(itemRec.X)+8, int32(itemRec.Y)+8, 13, itemTextCol)
-
-			layerY += 38
-			if layerY > int32(leftRec.Y+leftRec.Height)-80 {
+			minX := float32(0)
+			minY := float32(0)
+			maxX := fW
+			maxY := fH
+			if l.HasContentBounds {
+				minX = l.ContentMinX
+				minY = l.ContentMinY
+				maxX = l.ContentMaxX
+				maxY = l.ContentMaxY
+			}
+			lBox := rl.NewRectangle(topLeftX+minX*t.Scale, topLeftY+minY*t.Scale, (maxX-minX)*t.Scale, (maxY-minY)*t.Scale)
+			if rl.CheckCollisionPointRec(mousePos, lBox) {
+				clickedLayerID = l.Identification
 				break
 			}
 		}
-	}
 
-	// Bottom action bar of left sidebar (Duplicate, Delete)
-	dupBtn := rl.NewRectangle(leftRec.X+12, leftRec.Y+leftRec.Height-44, btnW, 32)
-	if rl.CheckCollisionPointRec(mousePos, dupBtn) {
-		rl.DrawRectangleRounded(dupBtn, 0.2, 4, rl.NewColor(45, 65, 95, 255))
-		if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
-			e.DuplicateSelectedLayer()
+		if clickedLayerID != -1 {
+			e.SelectedLayerID = clickedLayerID
 		}
-	} else {
-		rl.DrawRectangleRounded(dupBtn, 0.2, 4, rl.NewColor(30, 42, 62, 255))
 	}
-	ui.GlobalIcons.DrawIcon(ui.IconDuplicate, dupBtn.X+10, dupBtn.Y+8, 16, rl.SkyBlue)
-	e.UI.DrawText("Duplicar", int32(dupBtn.X)+30, int32(dupBtn.Y)+8, 13, rl.RayWhite)
 
-	delBtn := rl.NewRectangle(leftRec.X+12+btnW+12, leftRec.Y+leftRec.Height-44, btnW, 32)
-	if rl.CheckCollisionPointRec(mousePos, delBtn) {
-		rl.DrawRectangleRounded(delBtn, 0.2, 4, rl.NewColor(120, 35, 45, 255))
-		if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
-			e.RemoveSelectedLayer()
-		}
-	} else {
-		rl.DrawRectangleRounded(delBtn, 0.2, 4, rl.NewColor(80, 25, 35, 255))
+	// If Root / Pivot Central is selected, show Master Avatar Properties
+	if e.SelectedLayerID == 0 {
+		e.drawRootPivotPanel(rightRec, mousePos, scale, origin)
+		e.drawLayerGizmo(nil, scale, origin, mousePos)
+		return
 	}
-	ui.GlobalIcons.DrawIcon(ui.IconDelete, delBtn.X+12, delBtn.Y+8, 16, rl.NewColor(255, 120, 120, 255))
-	e.UI.DrawText("Excluir", int32(delBtn.X)+32, int32(delBtn.Y)+8, 13, rl.RayWhite)
-
-	// 3. Right Sidebar: Layer Properties & Settings
-	rightW := float32(360)
-	rightRec := rl.NewRectangle(float32(screenW)-rightW-12, 54, rightW, float32(screenH-66))
-	rl.DrawRectangleRounded(rightRec, 0.03, 6, rl.NewColor(16, 20, 30, 245))
-	rl.DrawRectangleRoundedLines(rightRec, 0.03, 6, rl.NewColor(45, 60, 90, 255))
 
 	var curLayer *model.Layer
 	if e.Avatar != nil {
@@ -419,11 +658,11 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 	}
 
 	if curLayer == nil {
-		e.UI.DrawText("Selecione ou adicione uma camada para editar", int32(rightRec.X)+20, int32(rightRec.Y)+40, 14, rl.Gray)
+		e.UI.DrawText("Selecione uma camada para editar propriedades", int32(rightRec.X)+20, int32(rightRec.Y)+40, 13, ui.ColTextMuted)
 		return
 	}
 
-	// Tabs Header for Layer Properties
+	// Properties Tabs Header (Wide enough with generous breathing room for "Visibilidade")
 	tabs := []struct {
 		tab  EditorTab
 		name string
@@ -436,152 +675,239 @@ func (e *EditorState) Draw(scale float32, origin rl.Vector2) {
 
 	tW := (rightW - 24) / float32(len(tabs))
 	for i, t := range tabs {
-		tRec := rl.NewRectangle(rightRec.X+12+float32(i)*tW, rightRec.Y+12, tW-2, 28)
+		tRec := rl.NewRectangle(rightRec.X+12+float32(i)*tW, rightRec.Y+12, tW-2, 32)
 		isActive := e.ActiveTab == t.tab
 		hovered := rl.CheckCollisionPointRec(mousePos, tRec)
 
-		tBg := rl.NewColor(28, 34, 48, 255)
-		tTextCol := rl.LightGray
+		tBg := ui.ColCardBg
+		tTextCol := ui.ColTextMuted
 		if isActive {
-			tBg = rl.NewColor(45, 95, 165, 255)
-			tTextCol = rl.RayWhite
+			tBg = ui.ColCardActive
+			tTextCol = ui.ColWhite
 		} else if hovered {
-			tBg = rl.NewColor(38, 48, 70, 255)
+			tBg = ui.ColCardHover
+			tTextCol = ui.ColWhite
 		}
 
 		if hovered && rl.IsMouseButtonPressed(rl.MouseLeftButton) {
 			e.ActiveTab = t.tab
+			e.RightScrollOffset = 0
 		}
 
-		rl.DrawRectangleRounded(tRec, 0.2, 4, tBg)
-		e.UI.DrawText(t.name, int32(tRec.X)+10, int32(tRec.Y)+6, 13, tTextCol)
+		rl.DrawRectangleRounded(tRec, 0.4, 4, tBg)
+		if isActive {
+			rl.DrawRectangleRoundedLines(tRec, 0.4, 4, ui.ColSkyBlue)
+		}
+		e.UI.DrawTextBold(t.name, int32(tRec.X)+int32(tW/2)-int32(e.UI.MeasureTextBold(t.name, 11.5)/2), int32(tRec.Y)+8, 11.5, tTextCol)
 	}
 
-	propY := int32(rightRec.Y) + 52
+	// Scrollable Properties Viewport
+	propViewRec := rl.NewRectangle(rightRec.X+10, rightRec.Y+52, rightW-20, rightRec.Height-62)
+	propContentH := float32(500)
 
-	// Render Selected Tab Content
+	if rl.CheckCollisionPointRec(mousePos, propViewRec) {
+		wheel := rl.GetMouseWheelMove()
+		if wheel != 0 {
+			e.RightScrollOffset -= wheel * 36.0
+		}
+	}
+	maxRightScroll := propContentH - propViewRec.Height
+	if maxRightScroll < 0 {
+		maxRightScroll = 0
+	}
+	if e.RightScrollOffset < 0 {
+		e.RightScrollOffset = 0
+	}
+	if e.RightScrollOffset > maxRightScroll {
+		e.RightScrollOffset = maxRightScroll
+	}
+
+	rl.BeginScissorMode(int32(propViewRec.X), int32(propViewRec.Y), int32(propViewRec.Width), int32(propViewRec.Height))
+	propY := int32(propViewRec.Y - e.RightScrollOffset)
+
 	switch e.ActiveTab {
 	case TabLayerGeneral:
-		e.drawGeneralTab(rightRec, propY, curLayer, mousePos)
+		e.drawGeneralTab(propViewRec, propY, curLayer, mousePos)
 	case TabLayerVisibility:
-		e.drawVisibilityTab(rightRec, propY, curLayer, mousePos)
+		e.drawVisibilityTab(propViewRec, propY, curLayer, mousePos)
 	case TabLayerPhysics:
-		e.drawPhysicsTab(rightRec, propY, curLayer, mousePos)
+		e.drawPhysicsTab(propViewRec, propY, curLayer, mousePos)
 	case TabLayerSprite:
-		e.drawSpriteTab(rightRec, propY, curLayer, mousePos)
+		e.drawSpriteTab(propViewRec, propY, curLayer, mousePos)
+	}
+	rl.EndScissorMode()
+
+	if propContentH > propViewRec.Height {
+		trackX := propViewRec.X + propViewRec.Width - 6
+		trackY := propViewRec.Y + 2
+		trackH := propViewRec.Height - 4
+		rl.DrawRectangleRounded(rl.NewRectangle(trackX, trackY, 5, trackH), 0.5, 4, ui.ColScrollTrack)
+
+		thumbH := (propViewRec.Height / propContentH) * trackH
+		if thumbH < 26 {
+			thumbH = 26
+		}
+		thumbY := trackY + (e.RightScrollOffset/maxRightScroll)*(trackH-thumbH)
+		rl.DrawRectangleRounded(rl.NewRectangle(trackX, thumbY, 5, thumbH), 0.5, 4, ui.ColScrollThumb)
 	}
 
-	// 4. Central Gizmo & Bounds on Active Layer
+	// 4. Central Gizmo & Precise Sprite-Sized Bounding Box
 	e.drawLayerGizmo(curLayer, scale, origin, mousePos)
 }
 
+// drawRootPivotPanel displays master character properties when the Root Node is selected.
+func (e *EditorState) drawRootPivotPanel(rightRec rl.Rectangle, mousePos rl.Vector2, scale float32, origin rl.Vector2) {
+	y := int32(rightRec.Y) + 14
+
+	// Header Card
+	hCard := rl.NewRectangle(rightRec.X+12, float32(y), rightRec.Width-24, 60)
+	ui.DrawCard(hCard, false, false)
+	rl.DrawRectangleRoundedLines(hCard, 0.16, 4, ui.ColYellow)
+	e.UI.DrawIconBadge(hCard.X+10, hCard.Y+10, 40, ui.IconAvatar, ui.ColYellow, ui.ColIconBoxBg)
+	e.UI.DrawTextBold("Pivot Central do Personagem", int32(hCard.X)+58, int32(hCard.Y)+12, 14, ui.ColYellow)
+	e.UI.DrawText("Ponto de ancoragem global da raiz", int32(hCard.X)+58, int32(hCard.Y)+34, 11.5, ui.ColTextMuted)
+
+	y += 72
+
+	// Info Card
+	infoCard := rl.NewRectangle(rightRec.X+12, float32(y), rightRec.Width-24, 120)
+	ui.DrawCard(infoCard, false, false)
+	e.UI.DrawTextBold("Estatísticas do Avatar", int32(infoCard.X)+14, int32(infoCard.Y)+12, 13.5, ui.ColSkyBlue)
+
+	layerCount := 0
+	rootCount := 0
+	if e.Avatar != nil {
+		layerCount = len(e.Avatar.Layers)
+		rootCount = len(e.Avatar.RootLayers)
+	}
+	e.UI.DrawText(fmt.Sprintf("• Total de Camadas: %d", layerCount), int32(infoCard.X)+14, int32(infoCard.Y)+36, 12, ui.ColTextBody)
+	e.UI.DrawText(fmt.Sprintf("• Camadas Raiz Conectadas: %d", rootCount), int32(infoCard.X)+14, int32(infoCard.Y)+58, 12, ui.ColTextBody)
+	e.UI.DrawText(fmt.Sprintf("• Arquivo: %s", filepath.Base(e.AvatarFilePath)), int32(infoCard.X)+14, int32(infoCard.Y)+80, 12, ui.ColTextBody)
+
+	y += 134
+
+	// Central Pivot Origin Display Card
+	originCard := rl.NewRectangle(rightRec.X+12, float32(y), rightRec.Width-24, 100)
+	ui.DrawCard(originCard, false, false)
+	e.UI.DrawTextBold("Origem do Canvas (Centro)", int32(originCard.X)+14, int32(originCard.Y)+12, 13.5, ui.ColSkyBlue)
+	e.UI.DrawText(fmt.Sprintf("Origem X: %.1f px | Origem Y: %.1f px", origin.X, origin.Y), int32(originCard.X)+14, int32(originCard.Y)+36, 12, ui.ColTextBody)
+	e.UI.DrawText(fmt.Sprintf("Escala Global: %.2fx", scale), int32(originCard.X)+14, int32(originCard.Y)+58, 12, ui.ColTextBody)
+
+	y += 114
+
+	// Quick action: Save Avatar
+	saveCard := rl.NewRectangle(rightRec.X+12, float32(y), rightRec.Width-24, 46)
+	hoveredSave := rl.CheckCollisionPointRec(mousePos, saveCard)
+	saveBg := rl.NewColor(30, 95, 55, 255)
+	if hoveredSave {
+		saveBg = rl.NewColor(40, 130, 75, 255)
+		if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
+			_ = e.SaveCurrentAvatar()
+		}
+	}
+	rl.DrawRectangleRounded(saveCard, 0.35, 4, saveBg)
+	rl.DrawRectangleRoundedLines(saveCard, 0.35, 4, ui.ColLime)
+	ui.GlobalIcons.DrawIcon(ui.IconSave, saveCard.X+14, saveCard.Y+12, 20, ui.ColWhite)
+	e.UI.DrawTextBold("Salvar Modificações do Avatar", int32(saveCard.X)+46, int32(saveCard.Y)+14, 13, ui.ColWhite)
+}
+
 func (e *EditorState) drawGeneralTab(rightRec rl.Rectangle, startY int32, layer *model.Layer, mousePos rl.Vector2) {
-	e.UI.DrawText(fmt.Sprintf("Camada: %s", filepath.Base(layer.Path)), int32(rightRec.X)+16, startY, 14, rl.Yellow)
+	y := startY + 6
 
-	y := startY + 28
+	// Layer Info Card
+	infoCard := rl.NewRectangle(rightRec.X+2, float32(y), rightRec.Width-14, 44)
+	ui.DrawCard(infoCard, false, false)
+	e.UI.DrawIconBadge(infoCard.X+8, infoCard.Y+6, 32, ui.IconAvatar, ui.ColSkyBlue, ui.ColIconBoxBg)
+	e.UI.DrawTextBold(filepath.Base(layer.Path), int32(infoCard.X)+48, int32(infoCard.Y)+13, 13.5, ui.ColTextTitle)
 
-	// Z-Index Controls
-	e.UI.DrawText(fmt.Sprintf("Profundidade Z-Index: %d", layer.ZIndex), int32(rightRec.X)+16, y, 14, rl.SkyBlue)
-	zMinus := rl.NewRectangle(rightRec.X+240, float32(y-2), 34, 24)
-	zPlus := rl.NewRectangle(rightRec.X+280, float32(y-2), 34, 24)
+	y += 52
+
+	// Z-Index Card
+	zCard := rl.NewRectangle(rightRec.X+2, float32(y), rightRec.Width-14, 52)
+	ui.DrawCard(zCard, false, false)
+	e.UI.DrawTextBold(fmt.Sprintf("Profundidade Z-Index: %d", layer.ZIndex), int32(zCard.X)+14, int32(zCard.Y)+16, 13.5, ui.ColSkyBlue)
+
+	zMinus := rl.NewRectangle(zCard.X+zCard.Width-84, zCard.Y+10, 36, 32)
+	zPlus := rl.NewRectangle(zCard.X+zCard.Width-44, zCard.Y+10, 36, 32)
 
 	if rl.CheckCollisionPointRec(mousePos, zMinus) {
-		rl.DrawRectangleRounded(zMinus, 0.2, 4, rl.NewColor(45, 60, 90, 255))
+		rl.DrawRectangleRounded(zMinus, 0.35, 4, ui.ColCardHover)
 		if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
 			layer.ZIndex--
 			e.Avatar.BuildHierarchy()
 		}
 	} else {
-		rl.DrawRectangleRounded(zMinus, 0.2, 4, rl.NewColor(32, 40, 60, 255))
+		rl.DrawRectangleRounded(zMinus, 0.35, 4, ui.ColCardBg)
 	}
-	e.UI.DrawText("-", int32(zMinus.X)+12, int32(zMinus.Y)+3, 16, rl.RayWhite)
+	rl.DrawRectangleRoundedLines(zMinus, 0.35, 4, ui.ColPanelBorder)
+	e.UI.DrawTextBold("-", int32(zMinus.X)+14, int32(zMinus.Y)+7, 16, ui.ColWhite)
 
 	if rl.CheckCollisionPointRec(mousePos, zPlus) {
-		rl.DrawRectangleRounded(zPlus, 0.2, 4, rl.NewColor(45, 60, 90, 255))
+		rl.DrawRectangleRounded(zPlus, 0.35, 4, ui.ColCardHover)
 		if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
 			layer.ZIndex++
 			e.Avatar.BuildHierarchy()
 		}
 	} else {
-		rl.DrawRectangleRounded(zPlus, 0.2, 4, rl.NewColor(32, 40, 60, 255))
+		rl.DrawRectangleRounded(zPlus, 0.35, 4, ui.ColCardBg)
 	}
-	e.UI.DrawText("+", int32(zPlus.X)+10, int32(zPlus.Y)+3, 16, rl.RayWhite)
+	rl.DrawRectangleRoundedLines(zPlus, 0.35, 4, ui.ColPanelBorder)
+	e.UI.DrawTextBold("+", int32(zPlus.X)+13, int32(zPlus.Y)+7, 16, ui.ColWhite)
 
-	y += 36
+	y += 60
 
-	// Position X Slider
-	e.UI.DrawText(fmt.Sprintf("Posição X: %.1f", layer.Pos.X), int32(rightRec.X)+16, y, 13, rl.LightGray)
-	posXRec := rl.NewRectangle(rightRec.X+16, float32(y+18), rightRec.Width-32, 12)
-	rl.DrawRectangleRounded(posXRec, 0.3, 4, rl.DarkGray)
-	if rl.IsMouseButtonDown(rl.MouseLeftButton) && rl.CheckCollisionPointRec(mousePos, rl.NewRectangle(posXRec.X-10, posXRec.Y-8, posXRec.Width+20, posXRec.Height+16)) {
-		ratio := (mousePos.X - posXRec.X) / posXRec.Width
-		layer.Pos.X = -300.0 + ratio*600.0
-	}
-	hX := posXRec.X + ((layer.Pos.X+300.0)/600.0)*posXRec.Width
-	rl.DrawCircle(int32(hX), int32(posXRec.Y)+6, 7, rl.SkyBlue)
+	// Position X & Y Sliders Card
+	posCard := rl.NewRectangle(rightRec.X+2, float32(y), rightRec.Width-14, 126)
+	ui.DrawCard(posCard, false, false)
+	e.UI.DrawTextBold("Posição no Canvas", int32(posCard.X)+14, int32(posCard.Y)+10, 13.5, ui.ColSkyBlue)
 
-	y += 42
+	e.UI.DrawText(fmt.Sprintf("Posição X: %.1f px", layer.Pos.X), int32(posCard.X)+14, int32(posCard.Y)+34, 11.5, ui.ColTextBody)
+	posXRec := rl.NewRectangle(posCard.X+14, posCard.Y+52, posCard.Width-28, 10)
+	layer.Pos.X = e.UI.DrawSliderControl(posXRec, layer.Pos.X, -300.0, 300.0, mousePos, ui.ColSkyBlue)
 
-	// Position Y Slider
-	e.UI.DrawText(fmt.Sprintf("Posição Y: %.1f", layer.Pos.Y), int32(rightRec.X)+16, y, 13, rl.LightGray)
-	posYRec := rl.NewRectangle(rightRec.X+16, float32(y+18), rightRec.Width-32, 12)
-	rl.DrawRectangleRounded(posYRec, 0.3, 4, rl.DarkGray)
-	if rl.IsMouseButtonDown(rl.MouseLeftButton) && rl.CheckCollisionPointRec(mousePos, rl.NewRectangle(posYRec.X-10, posYRec.Y-8, posYRec.Width+20, posYRec.Height+16)) {
-		ratio := (mousePos.X - posYRec.X) / posYRec.Width
-		layer.Pos.Y = -300.0 + ratio*600.0
-	}
-	hY := posYRec.X + ((layer.Pos.Y+300.0)/600.0)*posYRec.Width
-	rl.DrawCircle(int32(hY), int32(posYRec.Y)+6, 7, rl.SkyBlue)
+	e.UI.DrawText(fmt.Sprintf("Posição Y: %.1f px", layer.Pos.Y), int32(posCard.X)+14, int32(posCard.Y)+78, 11.5, ui.ColTextBody)
+	posYRec := rl.NewRectangle(posCard.X+14, posCard.Y+96, posCard.Width-28, 10)
+	layer.Pos.Y = e.UI.DrawSliderControl(posYRec, layer.Pos.Y, -300.0, 300.0, mousePos, ui.ColSkyBlue)
 
-	y += 42
+	y += 134
 
-	// Pivot Offset X Slider
-	e.UI.DrawText(fmt.Sprintf("Pivô / Offset X: %.1f", layer.Offset.X), int32(rightRec.X)+16, y, 13, rl.LightGray)
-	offXRec := rl.NewRectangle(rightRec.X+16, float32(y+18), rightRec.Width-32, 12)
-	rl.DrawRectangleRounded(offXRec, 0.3, 4, rl.DarkGray)
-	if rl.IsMouseButtonDown(rl.MouseLeftButton) && rl.CheckCollisionPointRec(mousePos, rl.NewRectangle(offXRec.X-10, offXRec.Y-8, offXRec.Width+20, offXRec.Height+16)) {
-		ratio := (mousePos.X - offXRec.X) / offXRec.Width
-		layer.Offset.X = -200.0 + ratio*400.0
-	}
-	hOffX := offXRec.X + ((layer.Offset.X+200.0)/400.0)*offXRec.Width
-	rl.DrawCircle(int32(hOffX), int32(offXRec.Y)+6, 7, rl.SkyBlue)
+	// Pivot Offset Card
+	pivotCard := rl.NewRectangle(rightRec.X+2, float32(y), rightRec.Width-14, 126)
+	ui.DrawCard(pivotCard, false, false)
+	e.UI.DrawTextBold("Pivô de Rotação (Offset)", int32(pivotCard.X)+14, int32(pivotCard.Y)+10, 13.5, ui.ColSkyBlue)
 
-	y += 42
+	e.UI.DrawText(fmt.Sprintf("Pivô X: %.1f px", layer.Offset.X), int32(pivotCard.X)+14, int32(pivotCard.Y)+34, 11.5, ui.ColTextBody)
+	offXRec := rl.NewRectangle(pivotCard.X+14, pivotCard.Y+52, pivotCard.Width-28, 10)
+	layer.Offset.X = e.UI.DrawSliderControl(offXRec, layer.Offset.X, -200.0, 200.0, mousePos, ui.ColSkyBlue)
 
-	// Pivot Offset Y Slider
-	e.UI.DrawText(fmt.Sprintf("Pivô / Offset Y: %.1f", layer.Offset.Y), int32(rightRec.X)+16, y, 13, rl.LightGray)
-	offYRec := rl.NewRectangle(rightRec.X+16, float32(y+18), rightRec.Width-32, 12)
-	rl.DrawRectangleRounded(offYRec, 0.3, 4, rl.DarkGray)
-	if rl.IsMouseButtonDown(rl.MouseLeftButton) && rl.CheckCollisionPointRec(mousePos, rl.NewRectangle(offYRec.X-10, offYRec.Y-8, offYRec.Width+20, offYRec.Height+16)) {
-		ratio := (mousePos.X - offYRec.X) / offYRec.Width
-		layer.Offset.Y = -200.0 + ratio*400.0
-	}
-	hOffY := offYRec.X + ((layer.Offset.Y+200.0)/400.0)*offYRec.Width
-	rl.DrawCircle(int32(hOffY), int32(offYRec.Y)+6, 7, rl.SkyBlue)
+	e.UI.DrawText(fmt.Sprintf("Pivô Y: %.1f px", layer.Offset.Y), int32(pivotCard.X)+14, int32(pivotCard.Y)+78, 11.5, ui.ColTextBody)
+	offYRec := rl.NewRectangle(pivotCard.X+14, pivotCard.Y+96, pivotCard.Width-28, 10)
+	layer.Offset.Y = e.UI.DrawSliderControl(offYRec, layer.Offset.Y, -200.0, 200.0, mousePos, ui.ColSkyBlue)
 
-	y += 45
+	y += 134
 
-	// Parent Node Selection
-	e.UI.DrawText("Camada Pai (Parent):", int32(rightRec.X)+16, y, 14, rl.SkyBlue)
-	parentName := "Nenhum (Raiz)"
+	// Parent Node Selection Card
+	pCard := rl.NewRectangle(rightRec.X+2, float32(y), rightRec.Width-14, 80)
+	ui.DrawCard(pCard, false, false)
+	parentName := "Pivot Central (Raiz)"
 	if layer.ParentID != nil && *layer.ParentID != 0 {
 		if p := e.Avatar.GetLayer(*layer.ParentID); p != nil {
 			parentName = filepath.Base(p.Path)
 		}
 	}
-	e.UI.DrawText(fmt.Sprintf("Pai Atual: %s", parentName), int32(rightRec.X)+16, y+20, 13, rl.Yellow)
+	e.UI.DrawTextBold(fmt.Sprintf("Pai Atual: %s", parentName), int32(pCard.X)+14, int32(pCard.Y)+12, 13.5, ui.ColSkyBlue)
 
-	// Cycle Parent Button
-	pBtn := rl.NewRectangle(rightRec.X+16, float32(y+42), rightRec.Width-32, 28)
+	pBtn := rl.NewRectangle(pCard.X+14, pCard.Y+40, pCard.Width-28, 30)
 	if rl.CheckCollisionPointRec(mousePos, pBtn) {
-		rl.DrawRectangleRounded(pBtn, 0.2, 4, rl.NewColor(45, 65, 95, 255))
+		rl.DrawRectangleRounded(pBtn, 0.35, 4, ui.ColCardHover)
 		if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
 			e.cycleParentLayer(layer)
 		}
 	} else {
-		rl.DrawRectangleRounded(pBtn, 0.2, 4, rl.NewColor(32, 44, 66, 255))
+		rl.DrawRectangleRounded(pBtn, 0.35, 4, ui.ColCardBg)
 	}
-	e.UI.DrawText("▶ Trocar Camada Pai", int32(pBtn.X)+90, int32(pBtn.Y)+6, 13, rl.RayWhite)
+	rl.DrawRectangleRoundedLines(pBtn, 0.35, 4, ui.ColPanelBorder)
+	e.UI.DrawTextBold("▶ Trocar Camada Pai", int32(pBtn.X)+int32(pBtn.Width/2)-60, int32(pBtn.Y)+7, 12, ui.ColWhite)
 }
 
 func (e *EditorState) cycleParentLayer(layer *model.Layer) {
@@ -613,49 +939,42 @@ func (e *EditorState) cycleParentLayer(layer *model.Layer) {
 }
 
 func (e *EditorState) drawVisibilityTab(rightRec rl.Rectangle, startY int32, layer *model.Layer, mousePos rl.Vector2) {
-	e.UI.DrawText("Condições de Exibição da Camada:", int32(rightRec.X)+16, startY, 14, rl.SkyBlue)
+	y := startY + 6
 
-	y := startY + 28
-
-	// Blink Visibility (0=Sempre, 1=Olhos Abertos, 2=Piscando)
-	e.UI.DrawText("Modo de Piscar (Blink):", int32(rightRec.X)+16, y, 13, rl.LightGray)
-	y += 20
+	// Blink Card (Generous breathing room)
+	blinkCard := rl.NewRectangle(rightRec.X+2, float32(y), rightRec.Width-14, 86)
+	ui.DrawCard(blinkCard, false, false)
+	e.UI.DrawTextBold("Modo de Piscar (Blink)", int32(blinkCard.X)+14, int32(blinkCard.Y)+10, 13.5, ui.ColSkyBlue)
 
 	blinkOpts := []struct {
 		val  int
 		name string
 	}{
 		{0, "Sempre"},
-		{1, "Olhos Abertos"},
+		{1, "Abertos"},
 		{2, "Piscando"},
 	}
 
-	bW := (rightRec.Width - 32 - 12) / 3
+	bW := (blinkCard.Width - 28 - 12) / 3
 	for i, opt := range blinkOpts {
-		bRec := rl.NewRectangle(rightRec.X+16+float32(i)*(bW+6), float32(y), bW, 28)
+		bRec := rl.NewRectangle(blinkCard.X+14+float32(i)*(bW+6), blinkCard.Y+40, bW, 34)
 		isCur := (layer.ShowBlink == opt.val)
 		hovered := rl.CheckCollisionPointRec(mousePos, bRec)
 
-		col := rl.NewColor(32, 40, 58, 255)
-		if isCur {
-			col = rl.NewColor(45, 115, 75, 255)
-		} else if hovered {
-			col = rl.NewColor(48, 58, 80, 255)
-		}
+		ui.DrawCard(bRec, hovered, isCur)
+		e.UI.DrawTextBold(opt.name, int32(bRec.X)+int32(bW/2)-int32(e.UI.MeasureTextBold(opt.name, 11.5)/2), int32(bRec.Y)+9, 11.5, ui.ColWhite)
 
 		if hovered && rl.IsMouseButtonPressed(rl.MouseLeftButton) {
 			layer.ShowBlink = opt.val
 		}
-
-		rl.DrawRectangleRounded(bRec, 0.2, 4, col)
-		e.UI.DrawText(opt.name, int32(bRec.X)+6, int32(bRec.Y)+6, 12, rl.RayWhite)
 	}
 
-	y += 42
+	y += 94
 
-	// Talk Visibility (0=Sempre, 1=Silêncio/Fechada, 2=Falando/Aberta)
-	e.UI.DrawText("Modo de Fala (Talk):", int32(rightRec.X)+16, y, 13, rl.LightGray)
-	y += 20
+	// Talk Card (Generous breathing room)
+	talkCard := rl.NewRectangle(rightRec.X+2, float32(y), rightRec.Width-14, 86)
+	ui.DrawCard(talkCard, false, false)
+	e.UI.DrawTextBold("Modo de Fala (Talk / VAD)", int32(talkCard.X)+14, int32(talkCard.Y)+10, 13.5, ui.ColSkyBlue)
 
 	talkOpts := []struct {
 		val  int
@@ -667,48 +986,41 @@ func (e *EditorState) drawVisibilityTab(rightRec rl.Rectangle, startY int32, lay
 	}
 
 	for i, opt := range talkOpts {
-		tRec := rl.NewRectangle(rightRec.X+16+float32(i)*(bW+6), float32(y), bW, 28)
+		tRec := rl.NewRectangle(talkCard.X+14+float32(i)*(bW+6), talkCard.Y+40, bW, 34)
 		isCur := (layer.ShowTalk == opt.val)
 		hovered := rl.CheckCollisionPointRec(mousePos, tRec)
 
-		col := rl.NewColor(32, 40, 58, 255)
-		if isCur {
-			col = rl.NewColor(45, 115, 75, 255)
-		} else if hovered {
-			col = rl.NewColor(48, 58, 80, 255)
-		}
+		ui.DrawCard(tRec, hovered, isCur)
+		e.UI.DrawTextBold(opt.name, int32(tRec.X)+int32(bW/2)-int32(e.UI.MeasureTextBold(opt.name, 11.5)/2), int32(tRec.Y)+9, 11.5, ui.ColWhite)
 
 		if hovered && rl.IsMouseButtonPressed(rl.MouseLeftButton) {
 			layer.ShowTalk = opt.val
 		}
-
-		rl.DrawRectangleRounded(tRec, 0.2, 4, col)
-		e.UI.DrawText(opt.name, int32(tRec.X)+12, int32(tRec.Y)+6, 12, rl.RayWhite)
 	}
 
-	y += 46
+	y += 94
 
-	// Costume Layers (1 to 10)
-	e.UI.DrawText("Ativo nos Figurinos (1 a 10):", int32(rightRec.X)+16, y, 13, rl.LightGray)
-	y += 22
+	// Costumes Card
+	costumeCard := rl.NewRectangle(rightRec.X+2, float32(y), rightRec.Width-14, 116)
+	ui.DrawCard(costumeCard, false, false)
+	e.UI.DrawTextBold("Ativo nos Figurinos (1 a 10)", int32(costumeCard.X)+14, int32(costumeCard.Y)+10, 13.5, ui.ColSkyBlue)
 
-	cBtnW := (rightRec.Width - 32 - 4*6) / 5
+	cBtnW := (costumeCard.Width - 28 - 4*6) / 5
 	for i := 1; i <= 10; i++ {
 		row := float32((i - 1) / 5)
 		col := float32((i - 1) % 5)
 
-		cRec := rl.NewRectangle(rightRec.X+16+col*(cBtnW+6), float32(y)+row*34, cBtnW, 28)
+		cRec := rl.NewRectangle(costumeCard.X+14+col*(cBtnW+6), costumeCard.Y+38+row*34, cBtnW, 30)
 		isActive := layer.CostumeLayers[i-1] == 1
 		hovered := rl.CheckCollisionPointRec(mousePos, cRec)
 
-		bgCol := rl.NewColor(32, 38, 54, 255)
-		txtCol := rl.Gray
+		ui.DrawCard(cRec, hovered, isActive)
+
+		numCol := ui.ColTextMuted
 		if isActive {
-			bgCol = rl.NewColor(35, 110, 65, 255)
-			txtCol = rl.Lime
-		} else if hovered {
-			bgCol = rl.NewColor(45, 55, 75, 255)
+			numCol = ui.ColLime
 		}
+		e.UI.DrawTextBold(fmt.Sprintf("%d", i), int32(cRec.X)+int32(cBtnW/2)-4, int32(cRec.Y)+7, 13.5, numCol)
 
 		if hovered && rl.IsMouseButtonPressed(rl.MouseLeftButton) {
 			if isActive {
@@ -717,133 +1029,126 @@ func (e *EditorState) drawVisibilityTab(rightRec rl.Rectangle, startY int32, lay
 				layer.CostumeLayers[i-1] = 1
 			}
 		}
-
-		rl.DrawRectangleRounded(cRec, 0.2, 4, bgCol)
-		e.UI.DrawText(fmt.Sprintf("%d", i), int32(cRec.X)+int32(cBtnW/2)-4, int32(cRec.Y)+6, 14, txtCol)
 	}
 }
 
 func (e *EditorState) drawPhysicsTab(rightRec rl.Rectangle, startY int32, layer *model.Layer, mousePos rl.Vector2) {
-	e.UI.DrawText("Física e Oscilação da Camada:", int32(rightRec.X)+16, startY, 14, rl.SkyBlue)
+	y := startY + 6
 
-	barW := rightRec.Width - 32
-	y := startY + 28
+	// Wobble & Damping Card
+	wobCard := rl.NewRectangle(rightRec.X+2, float32(y), rightRec.Width-14, 146)
+	ui.DrawCard(wobCard, false, false)
+	e.UI.DrawTextBold("Inércia e Amortecimento (Wobble)", int32(wobCard.X)+14, int32(wobCard.Y)+10, 13.5, ui.ColSkyBlue)
 
-	// 1. Angular Damping (RotDrag)
-	e.UI.DrawText(fmt.Sprintf("Arrasto Angular (Inércia): %.2f", layer.RotDrag), int32(rightRec.X)+16, y, 13, rl.Yellow)
-	rdRec := rl.NewRectangle(rightRec.X+16, float32(y+18), barW, 12)
-	rl.DrawRectangleRounded(rdRec, 0.3, 4, rl.DarkGray)
-	if rl.IsMouseButtonDown(rl.MouseLeftButton) && rl.CheckCollisionPointRec(mousePos, rl.NewRectangle(rdRec.X-10, rdRec.Y-8, rdRec.Width+20, rdRec.Height+16)) {
-		ratio := (mousePos.X - rdRec.X) / rdRec.Width
-		layer.RotDrag = ratio * 1.0
-	}
-	rl.DrawCircle(int32(rdRec.X+layer.RotDrag*rdRec.Width), int32(rdRec.Y)+6, 7, rl.SkyBlue)
+	e.UI.DrawText(fmt.Sprintf("Arrasto Angular (Inércia): %.2f", layer.RotDrag), int32(wobCard.X)+14, int32(wobCard.Y)+34, 11.5, ui.ColTextBody)
+	rdRec := rl.NewRectangle(wobCard.X+14, wobCard.Y+52, wobCard.Width-28, 10)
+	layer.RotDrag = e.UI.DrawSliderControl(rdRec, layer.RotDrag, 0.0, 1.0, mousePos, ui.ColSkyBlue)
 
-	y += 38
+	e.UI.DrawText(fmt.Sprintf("Limite de Rotação: [%.0f° a %.0f°]", layer.RLimitMin, layer.RLimitMax), int32(wobCard.X)+14, int32(wobCard.Y)+80, 11.5, ui.ColTextBody)
+	clampRec := rl.NewRectangle(wobCard.X+14, wobCard.Y+100, wobCard.Width-28, 10)
+	angle := e.UI.DrawSliderControl(clampRec, layer.RLimitMax, 0.0, 90.0, mousePos, ui.ColSkyBlue)
+	layer.RLimitMin = -angle
+	layer.RLimitMax = angle
 
-	// 2. Rotation Clamp (RLimitMin, RLimitMax)
-	e.UI.DrawText(fmt.Sprintf("Limite de Rotação: [%.0f° a %.0f°]", layer.RLimitMin, layer.RLimitMax), int32(rightRec.X)+16, y, 13, rl.LightGray)
-	clampRec := rl.NewRectangle(rightRec.X+16, float32(y+18), barW, 12)
-	rl.DrawRectangleRounded(clampRec, 0.3, 4, rl.DarkGray)
-	if rl.IsMouseButtonDown(rl.MouseLeftButton) && rl.CheckCollisionPointRec(mousePos, rl.NewRectangle(clampRec.X-10, clampRec.Y-8, clampRec.Width+20, clampRec.Height+16)) {
-		ratio := (mousePos.X - clampRec.X) / clampRec.Width
-		angle := ratio * 90.0
-		layer.RLimitMin = -angle
-		layer.RLimitMax = angle
-	}
-	rl.DrawCircle(int32(clampRec.X+(layer.RLimitMax/90.0)*clampRec.Width), int32(clampRec.Y)+6, 7, rl.SkyBlue)
+	y += 154
 
-	y += 38
+	// Breathing & Stretch Card
+	breathCard := rl.NewRectangle(rightRec.X+2, float32(y), rightRec.Width-14, 186)
+	ui.DrawCard(breathCard, false, false)
+	e.UI.DrawTextBold("Respiração e Elasticidade", int32(breathCard.X)+14, int32(breathCard.Y)+10, 13.5, ui.ColSkyBlue)
 
-	// 3. Idle Breathing (XAmp, YAmp)
-	e.UI.DrawText(fmt.Sprintf("Respiração Idle (Oscilação): %.1f px", layer.YAmp), int32(rightRec.X)+16, y, 13, rl.LightGray)
-	ampRec := rl.NewRectangle(rightRec.X+16, float32(y+18), barW, 12)
-	rl.DrawRectangleRounded(ampRec, 0.3, 4, rl.DarkGray)
-	if rl.IsMouseButtonDown(rl.MouseLeftButton) && rl.CheckCollisionPointRec(mousePos, rl.NewRectangle(ampRec.X-10, ampRec.Y-8, ampRec.Width+20, ampRec.Height+16)) {
-		ratio := (mousePos.X - ampRec.X) / ampRec.Width
-		layer.YAmp = ratio * 30.0
-		layer.YFrq = 1.5
-	}
-	rl.DrawCircle(int32(ampRec.X+(layer.YAmp/30.0)*ampRec.Width), int32(ampRec.Y)+6, 7, rl.SkyBlue)
+	e.UI.DrawText(fmt.Sprintf("Oscilação Idle (YAmp): %.1f px", layer.YAmp), int32(breathCard.X)+14, int32(breathCard.Y)+34, 11.5, ui.ColTextBody)
+	ampRec := rl.NewRectangle(breathCard.X+14, breathCard.Y+52, breathCard.Width-28, 10)
+	layer.YAmp = e.UI.DrawSliderControl(ampRec, layer.YAmp, 0.0, 30.0, mousePos, ui.ColSkyBlue)
+	layer.YFrq = 1.5
 
-	y += 38
+	e.UI.DrawText(fmt.Sprintf("Elasticidade (Stretch): %.2f", layer.StretchAmount), int32(breathCard.X)+14, int32(breathCard.Y)+80, 11.5, ui.ColTextBody)
+	strRec := rl.NewRectangle(breathCard.X+14, breathCard.Y+100, breathCard.Width-28, 10)
+	layer.StretchAmount = e.UI.DrawSliderControl(strRec, layer.StretchAmount, 0.0, 2.0, mousePos, ui.ColSkyBlue)
 
-	// 4. Elasticity / Stretch (StretchAmount)
-	e.UI.DrawText(fmt.Sprintf("Elasticidade (Stretch): %.2f", layer.StretchAmount), int32(rightRec.X)+16, y, 13, rl.LightGray)
-	strRec := rl.NewRectangle(rightRec.X+16, float32(y+18), barW, 12)
-	rl.DrawRectangleRounded(strRec, 0.3, 4, rl.DarkGray)
-	if rl.IsMouseButtonDown(rl.MouseLeftButton) && rl.CheckCollisionPointRec(mousePos, rl.NewRectangle(strRec.X-10, strRec.Y-8, strRec.Width+20, strRec.Height+16)) {
-		ratio := (mousePos.X - strRec.X) / strRec.Width
-		layer.StretchAmount = ratio * 2.0
-	}
-	rl.DrawCircle(int32(strRec.X+(layer.StretchAmount/2.0)*strRec.Width), int32(strRec.Y)+6, 7, rl.SkyBlue)
-
-	y += 42
-
-	// Ignore Bounce Checkbox
-	chkRec := rl.NewRectangle(rightRec.X+16, float32(y), 20, 20)
-	if rl.CheckCollisionPointRec(mousePos, chkRec) && rl.IsMouseButtonPressed(rl.MouseLeftButton) {
-		layer.IgnoreBounce = !layer.IgnoreBounce
-	}
-	rl.DrawRectangleRounded(chkRec, 0.2, 4, rl.DarkGray)
-	if layer.IgnoreBounce {
-		rl.DrawRectangle(int32(chkRec.X)+4, int32(chkRec.Y)+4, 12, 12, rl.Lime)
-	}
-	e.UI.DrawText("Ignorar Pulo Global (Ignore Bounce)", int32(chkRec.X)+28, int32(chkRec.Y)+2, 13, rl.RayWhite)
+	toggleRec := rl.NewRectangle(breathCard.X+14, breathCard.Y+136, breathCard.Width-28, 28)
+	layer.IgnoreBounce = e.UI.DrawToggle(toggleRec, "Ignorar Salto Global (Ignore Bounce)", layer.IgnoreBounce, mousePos)
 }
 
 func (e *EditorState) drawSpriteTab(rightRec rl.Rectangle, startY int32, layer *model.Layer, mousePos rl.Vector2) {
-	e.UI.DrawText("Configuração de SpriteSheet:", int32(rightRec.X)+16, startY, 14, rl.SkyBlue)
+	y := startY + 6
 
-	y := startY + 28
+	spriteCard := rl.NewRectangle(rightRec.X+2, float32(y), rightRec.Width-14, 166)
+	ui.DrawCard(spriteCard, false, false)
+	e.UI.DrawTextBold("Configuração de SpriteSheet", int32(spriteCard.X)+14, int32(spriteCard.Y)+10, 13.5, ui.ColSkyBlue)
 
-	// Frames Count
-	e.UI.DrawText(fmt.Sprintf("Quantidade de Quadros (Frames): %d", layer.Frames), int32(rightRec.X)+16, y, 13, rl.Yellow)
-	fMinus := rl.NewRectangle(rightRec.X+240, float32(y-2), 34, 24)
-	fPlus := rl.NewRectangle(rightRec.X+280, float32(y-2), 34, 24)
+	e.UI.DrawTextBold(fmt.Sprintf("Quadros (Frames): %d", layer.Frames), int32(spriteCard.X)+14, int32(spriteCard.Y)+38, 12.5, ui.ColTextBody)
+	fMinus := rl.NewRectangle(spriteCard.X+spriteCard.Width-84, spriteCard.Y+30, 36, 32)
+	fPlus := rl.NewRectangle(spriteCard.X+spriteCard.Width-44, spriteCard.Y+30, 36, 32)
 
 	if rl.CheckCollisionPointRec(mousePos, fMinus) {
-		rl.DrawRectangleRounded(fMinus, 0.2, 4, rl.NewColor(45, 60, 90, 255))
+		rl.DrawRectangleRounded(fMinus, 0.35, 4, ui.ColCardHover)
 		if rl.IsMouseButtonPressed(rl.MouseLeftButton) && layer.Frames > 1 {
 			layer.Frames--
 		}
 	} else {
-		rl.DrawRectangleRounded(fMinus, 0.2, 4, rl.NewColor(32, 40, 60, 255))
+		rl.DrawRectangleRounded(fMinus, 0.35, 4, ui.ColCardBg)
 	}
-	e.UI.DrawText("-", int32(fMinus.X)+12, int32(fMinus.Y)+3, 16, rl.RayWhite)
+	rl.DrawRectangleRoundedLines(fMinus, 0.35, 4, ui.ColPanelBorder)
+	e.UI.DrawTextBold("-", int32(fMinus.X)+14, int32(fMinus.Y)+7, 16, ui.ColWhite)
 
 	if rl.CheckCollisionPointRec(mousePos, fPlus) {
-		rl.DrawRectangleRounded(fPlus, 0.2, 4, rl.NewColor(45, 60, 90, 255))
+		rl.DrawRectangleRounded(fPlus, 0.35, 4, ui.ColCardHover)
 		if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
 			layer.Frames++
 		}
 	} else {
-		rl.DrawRectangleRounded(fPlus, 0.2, 4, rl.NewColor(32, 40, 60, 255))
+		rl.DrawRectangleRounded(fPlus, 0.35, 4, ui.ColCardBg)
 	}
-	e.UI.DrawText("+", int32(fPlus.X)+10, int32(fPlus.Y)+3, 16, rl.RayWhite)
+	rl.DrawRectangleRoundedLines(fPlus, 0.35, 4, ui.ColPanelBorder)
+	e.UI.DrawTextBold("+", int32(fPlus.X)+13, int32(fPlus.Y)+7, 16, ui.ColWhite)
 
-	y += 40
-
-	// Animation Speed
-	e.UI.DrawText(fmt.Sprintf("Velocidade da Animação: %.1f FPS", layer.AnimSpeed), int32(rightRec.X)+16, y, 13, rl.LightGray)
-	fpsRec := rl.NewRectangle(rightRec.X+16, float32(y+18), rightRec.Width-32, 12)
-	rl.DrawRectangleRounded(fpsRec, 0.3, 4, rl.DarkGray)
-	if rl.IsMouseButtonDown(rl.MouseLeftButton) && rl.CheckCollisionPointRec(mousePos, rl.NewRectangle(fpsRec.X-10, fpsRec.Y-8, fpsRec.Width+20, fpsRec.Height+16)) {
-		ratio := (mousePos.X - fpsRec.X) / fpsRec.Width
-		layer.AnimSpeed = ratio * 30.0
-	}
-	rl.DrawCircle(int32(fpsRec.X+(layer.AnimSpeed/30.0)*fpsRec.Width), int32(fpsRec.Y)+6, 7, rl.SkyBlue)
+	e.UI.DrawText(fmt.Sprintf("Velocidade da Animação: %.1f FPS", layer.AnimSpeed), int32(spriteCard.X)+14, int32(spriteCard.Y)+84, 11.5, ui.ColTextBody)
+	fpsRec := rl.NewRectangle(spriteCard.X+14, spriteCard.Y+108, spriteCard.Width-28, 10)
+	layer.AnimSpeed = e.UI.DrawSliderControl(fpsRec, layer.AnimSpeed, 0.0, 30.0, mousePos, ui.ColSkyBlue)
 }
 
-// drawLayerGizmo renders a bounding box and interactive position handle over the selected layer in the viewport.
+// drawLayerGizmo renders a bounding box and interactive position handle over the selected layer or Root node.
 func (e *EditorState) drawLayerGizmo(layer *model.Layer, scale float32, origin rl.Vector2, mousePos rl.Vector2) {
-	if layer == nil || e.TextureCache == nil {
+	// If Root / Pivot Central is selected, show global origin crosshair
+	if e.SelectedLayerID == 0 || layer == nil {
+		rl.DrawCircleLines(int32(origin.X), int32(origin.Y), 16, ui.ColOrange)
+		rl.DrawLine(int32(origin.X)-24, int32(origin.Y), int32(origin.X)+24, int32(origin.Y), ui.ColYellow)
+		rl.DrawLine(int32(origin.X), int32(origin.Y)-24, int32(origin.X), int32(origin.Y)+24, ui.ColYellow)
+		rl.DrawCircle(int32(origin.X), int32(origin.Y), 6, ui.ColYellow)
+		e.UI.DrawBadge(origin.X-55, origin.Y+22, "⭐ Pivot Central (0,0)", ui.ColPanelBg, ui.ColYellow)
+		return
+	}
+
+	if e.TextureCache == nil || e.Avatar == nil {
 		return
 	}
 
 	tex, ok := e.TextureCache.GetTexture(layer.Identification)
 	if !ok || tex.Width == 0 || tex.Height == 0 {
 		return
+	}
+
+	// Compute world transform matching renderer.go exactly
+	transforms := render.ComputeWorldTransforms(
+		e.Avatar,
+		origin,
+		scale,
+		0,
+		nil,
+		nil,
+	)
+
+	t, ok := transforms[layer.Identification]
+	if !ok {
+		t = render.LayerTransform{
+			WorldPos: rl.Vector2{
+				X: origin.X + (layer.Pos.X * scale),
+				Y: origin.Y + (layer.Pos.Y * scale),
+			},
+			Scale:    scale,
+			Rotation: 0,
+		}
 	}
 
 	frames := layer.Frames
@@ -853,27 +1158,64 @@ func (e *EditorState) drawLayerGizmo(layer *model.Layer, scale float32, origin r
 	fW := float32(tex.Width) / float32(frames)
 	fH := float32(tex.Height)
 
-	// Compute screen position of layer center
-	scrX := origin.X + (layer.Pos.X * scale)
-	scrY := origin.Y + (layer.Pos.Y * scale)
+	destW := fW * t.Scale
+	destH := fH * t.Scale
 
-	boxW := fW * scale
-	boxH := fH * scale
-	boxRec := rl.NewRectangle(
-		scrX-(boxW*0.5)+(layer.Offset.X*scale),
-		scrY-(boxH*0.5)+(layer.Offset.Y*scale),
-		boxW,
-		boxH,
-	)
+	pivot := rl.Vector2{
+		X: (destW * 0.5) - (layer.Offset.X * t.Scale),
+		Y: (destH * 0.5) - (layer.Offset.Y * t.Scale),
+	}
 
-	// Draw bounding box
-	rl.DrawRectangleLinesEx(boxRec, 1.5, rl.NewColor(50, 180, 255, 180))
+	// Exact top-left screen position matching render/renderer.go
+	topLeftX := t.WorldPos.X - pivot.X
+	topLeftY := t.WorldPos.Y - pivot.Y
 
-	// Pivot / Center Anchor Handle (Circle)
+	// Compute selection box based on non-transparent sprite pixel boundaries
+	minX := float32(0)
+	minY := float32(0)
+	maxX := fW
+	maxY := fH
+	if layer.HasContentBounds {
+		minX = layer.ContentMinX
+		minY = layer.ContentMinY
+		maxX = layer.ContentMaxX
+		maxY = layer.ContentMaxY
+	} else if len(layer.ImageData) > 0 {
+		layer.UpdateContentBounds()
+		if layer.HasContentBounds {
+			minX = layer.ContentMinX
+			minY = layer.ContentMinY
+			maxX = layer.ContentMaxX
+			maxY = layer.ContentMaxY
+		}
+	}
+
+	boxX := topLeftX + (minX * t.Scale)
+	boxY := topLeftY + (minY * t.Scale)
+	boxW := (maxX - minX) * t.Scale
+	boxH := (maxY - minY) * t.Scale
+	boxRec := rl.NewRectangle(boxX, boxY, boxW, boxH)
+
+	// 1. Semi-transparent fill highlight
+	rl.DrawRectangleRec(boxRec, rl.NewColor(41, 173, 255, 30))
+
+	// 2. Crisp Bounding Box around actual sprite pixels
+	rl.DrawRectangleLinesEx(boxRec, 1.5, ui.ColSkyBlue)
+
+	// 3. 4 Corner indicator squares
+	cSize := float32(6)
+	rl.DrawRectangleRec(rl.NewRectangle(boxRec.X-3, boxRec.Y-3, cSize, cSize), ui.ColWhite)
+	rl.DrawRectangleRec(rl.NewRectangle(boxRec.X+boxRec.Width-3, boxRec.Y-3, cSize, cSize), ui.ColWhite)
+	rl.DrawRectangleRec(rl.NewRectangle(boxRec.X-3, boxRec.Y+boxRec.Height-3, cSize, cSize), ui.ColWhite)
+	rl.DrawRectangleRec(rl.NewRectangle(boxRec.X+boxRec.Width-3, boxRec.Y+boxRec.Height-3, cSize, cSize), ui.ColWhite)
+
+	// 4. Center / Drag Anchor Handle
+	scrX := t.WorldPos.X
+	scrY := t.WorldPos.Y
 	pivotRec := rl.NewRectangle(scrX-12, scrY-12, 24, 24)
-	pivotHovered := rl.CheckCollisionPointRec(mousePos, pivotRec)
+	pivotHovered := rl.CheckCollisionPointRec(mousePos, pivotRec) || rl.CheckCollisionPointRec(mousePos, boxRec)
 
-	if pivotHovered && rl.IsMouseButtonPressed(rl.MouseLeftButton) {
+	if (pivotHovered || rl.CheckCollisionPointRec(mousePos, boxRec)) && rl.IsMouseButtonPressed(rl.MouseLeftButton) && !e.IsDraggingLeftScroll && !e.IsDraggingRightScroll {
 		e.IsDraggingPos = true
 		e.DragStartMouse = mousePos
 		e.DragStartLayerPos = layer.Pos
@@ -890,9 +1232,9 @@ func (e *EditorState) drawLayerGizmo(layer *model.Layer, scale float32, origin r
 		}
 	}
 
-	handleCol := rl.SkyBlue
+	handleCol := ui.ColSkyBlue
 	if e.IsDraggingPos || pivotHovered {
-		handleCol = rl.Lime
+		handleCol = ui.ColLime
 	}
 
 	rl.DrawCircle(int32(scrX), int32(scrY), 8, handleCol)

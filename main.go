@@ -9,6 +9,7 @@ import (
 	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"pngtuber-lite/assets"
 	"pngtuber-lite/pkg/anim"
 	"pngtuber-lite/pkg/audio"
 	"pngtuber-lite/pkg/config"
@@ -123,6 +124,15 @@ func main() {
 	wm := window.NewWindowManager(cfg)
 	wm.InitWindow()
 	defer wm.CloseWindow()
+
+	// Set window icon in Raylib / GLFW for Taskbar / Dock
+	if len(assets.AppLogoPNG) > 0 {
+		iconImg := rl.LoadImageFromMemory(".png", assets.AppLogoPNG, int32(len(assets.AppLogoPNG)))
+		if iconImg.Width > 0 && iconImg.Height > 0 {
+			rl.SetWindowIcon(*iconImg)
+		}
+		rl.UnloadImage(iconImg)
+	}
 
 	// Disable default exit key (ESC) to allow custom overlay handling
 	rl.SetExitKey(0)

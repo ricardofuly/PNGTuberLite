@@ -148,7 +148,8 @@ func (ce *CaptureEngine) SetThreshold(threshold float32) {
 	}
 }
 
-// ListDevices returns the names of all available audio capture devices, prioritizing real and virtual sources (like Easy Effects).
+// ListDevices returns the names of all available physical and virtual audio capture microphones,
+// completely filtering out internal loopback/monitor devices.
 func (ce *CaptureEngine) ListDevices() ([]string, error) {
 	ctx, err := malgo.InitContext(nil, malgo.ContextConfig{}, nil)
 	if err != nil {
@@ -164,21 +165,19 @@ func (ce *CaptureEngine) ListDevices() ([]string, error) {
 		return nil, err
 	}
 
-	var sources []string
-	var monitors []string
-
+	var devices []string
 	for _, info := range infos {
 		name := info.Name()
 		if name == "" {
 			continue
 		}
-		if strings.HasPrefix(strings.ToLower(name), "monitor of") {
-			monitors = append(monitors, name)
-		} else {
-			sources = append(sources, name)
+		lower := strings.ToLower(name)
+		// Filter out any monitor / loopback output sinks
+		if strings.Contains(lower, "monitor") {
+			continue
 		}
+		devices = append(devices, name)
 	}
 
-	devices := append(sources, monitors...)
 	return devices, nil
 }
